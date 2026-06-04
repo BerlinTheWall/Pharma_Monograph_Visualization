@@ -1,0 +1,567 @@
+/* =====================================================================
+   Drug Monograph Explorer — style.css
+   ===================================================================== */
+
+/* ─── RESET & BASE ─────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e9ecef 100%);
+  color: #2d3748;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── HEADER ───────────────────────────────────────────────────────── */
+.header {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: #fff;
+  padding: 16px 28px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .18);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header-left h1 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.header-left p {
+  font-size: 12px;
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
+.stats-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.stat-chip {
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 20px;
+  padding: 4px 13px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.stat-chip strong {
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 3px;
+}
+
+.loading-chip {
+  opacity: 0.5;
+  font-style: italic;
+  font-size: 11px;
+}
+
+/* ─── LAYOUT ───────────────────────────────────────────────────────── */
+.layout {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  /* Subtract header height (~68px) */
+  height: calc(100vh - 68px);
+}
+
+/* ─── CHART CARD ───────────────────────────────────────────────────── */
+.chart-card {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .07);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative; /* for overlays */
+}
+
+/* Topbar inside chart card */
+.chart-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 18px 10px;
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.bc-root {
+  cursor: pointer;
+  transition: color .15s;
+  font-weight: 600;
+  color: #374151;
+}
+
+.bc-root:hover {
+  color: #dc143c;
+}
+
+.bc-sep {
+  font-size: 16px;
+  color: #d1d5db;
+  line-height: 1;
+}
+
+.bc-active {
+  color: #1a1a2e;
+  font-weight: 600;
+}
+
+/* Back button */
+.back-btn {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 15px;
+  background: #1a1a2e;
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .18s;
+  white-space: nowrap;
+}
+
+.back-btn:hover {
+  background: #dc143c;
+}
+
+.back-btn.visible {
+  display: flex;
+}
+
+/* SVG wrap */
+.chart-svg-wrap {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+#chart-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Footer */
+.chart-footer {
+  padding: 8px 18px;
+  font-size: 11px;
+  color: #9ca3af;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.footer-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #dc143c;
+  flex-shrink: 0;
+}
+
+.footer-sep {
+  color: #d1d5db;
+}
+
+/* ─── LOADING OVERLAY ──────────────────────────────────────────────── */
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, .85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-size: 13px;
+  color: #6b7280;
+  z-index: 10;
+  border-radius: 14px;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #dc143c;
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── ERROR OVERLAY ────────────────────────────────────────────────── */
+.error-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, .92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  z-index: 10;
+  border-radius: 14px;
+}
+
+.error-icon {
+  font-size: 36px;
+  color: #dc143c;
+}
+
+.error-msg {
+  font-size: 13px;
+  color: #374151;
+  max-width: 360px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.retry-btn {
+  margin-top: 6px;
+  padding: 7px 20px;
+  background: #1a1a2e;
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .18s;
+}
+
+.retry-btn:hover {
+  background: #dc143c;
+}
+
+/* ─── SIDEBAR ──────────────────────────────────────────────────────── */
+.sidebar {
+  width: 285px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  /* Custom scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+/* ─── PANEL ────────────────────────────────────────────────────────── */
+.panel {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .06);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.panel-header {
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: #6b7280;
+  background: #f9fafb;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ph-accent {
+  color: #dc143c;
+  font-size: 13px;
+}
+
+.panel-body {
+  padding: 10px 12px;
+}
+
+/* ─── AXIS OPTIONS ─────────────────────────────────────────────────── */
+.axis-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.axis-opt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .12s;
+  font-size: 12.5px;
+  color: #374151;
+  border: 1.5px solid transparent;
+  user-select: none;
+}
+
+.axis-opt:hover {
+  background: #f9fafb;
+}
+
+.axis-opt.active {
+  background: #fff5f5;
+  border-color: #dc143c;
+  color: #dc143c;
+  font-weight: 500;
+}
+
+.axis-opt input[type="radio"] {
+  display: none;
+}
+
+.radio-ring {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #d1d5db;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color .12s;
+  position: relative;
+}
+
+.axis-opt.active .radio-ring {
+  border-color: #dc143c;
+}
+
+.radio-ring::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #dc143c;
+  opacity: 0;
+  transition: opacity .12s;
+}
+
+.axis-opt.active .radio-ring::after {
+  opacity: 1;
+}
+
+/* ─── LEGEND LIST ──────────────────────────────────────────────────── */
+.legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.legend-list::-webkit-scrollbar { width: 3px; }
+.legend-list::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+  transition: background .12s;
+}
+
+.legend-item:hover {
+  background: #f9fafb;
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-name {
+  flex: 1;
+  line-height: 1.3;
+  /* truncate long company names */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legend-count {
+  font-size: 10px;
+  color: #9ca3af;
+  background: #f3f4f6;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.legend-loading {
+  font-size: 12px;
+  color: #9ca3af;
+  padding: 8px 0;
+  font-style: italic;
+}
+
+/* ─── TOOLTIP ──────────────────────────────────────────────────────── */
+#tooltip {
+  position: fixed;
+  background: #1a1a2e;
+  color: #fff;
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .12s;
+  z-index: 9999;
+  max-width: 260px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .3);
+  font-family: 'Inter', sans-serif;
+}
+
+#tooltip.show {
+  opacity: 1;
+}
+
+.tt-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+
+.tt-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 14px;
+  color: rgba(255, 255, 255, .65);
+}
+
+.tt-val {
+  color: #fff;
+  font-weight: 500;
+  text-align: right;
+}
+
+.tt-sep {
+  height: 1px;
+  background: rgba(255, 255, 255, .12);
+  margin: 6px 0;
+  grid-column: 1 / -1;
+}
+
+.tt-hint {
+  font-size: 10px;
+  color: #f87171;
+  font-weight: 500;
+  letter-spacing: .03em;
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+/* ─── SVG ELEMENT STYLES ───────────────────────────────────────────── */
+.grid-line {
+  stroke: #f3f4f6;
+  stroke-width: 1;
+}
+
+.axis-line {
+  stroke: #e5e7eb;
+}
+
+.axis text {
+  font-family: 'Inter', sans-serif;
+  fill: #9ca3af;
+  font-size: 11px;
+}
+
+.axis path,
+.axis line {
+  stroke: #e5e7eb;
+}
+
+.axis-label-text {
+  font-family: 'Inter', sans-serif;
+  fill: #9ca3af;
+  font-size: 11px;
+}
+
+/* ─── RESPONSIVE ───────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .layout {
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100vh - 68px);
+  }
+
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .panel {
+    min-width: 240px;
+    flex: 1;
+  }
+
+  .chart-card {
+    height: 60vh;
+    min-height: 400px;
+  }
+}

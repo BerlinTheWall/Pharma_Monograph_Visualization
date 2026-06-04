@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drug Monograph Explorer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ─── HEADER ─── -->
+<div class="header">
+  <div class="header-left">
+    <h1>Drug Monograph Explorer</h1>
+    <p>Canadian generic drug safety database</p>
+  </div>
+  <div class="stats-bar" id="stats-bar">
+    <div class="stat-chip loading-chip">Loading…</div>
+  </div>
+</div>
+
+<!-- ─── MAIN LAYOUT ─── -->
+<div class="layout">
+
+  <!-- ─── CHART CARD ─── -->
+  <div class="chart-card">
+    <div class="chart-topbar">
+      <div class="breadcrumb">
+        <span class="bc-root" id="bc-root" onclick="drillUp()">All Drug Classes</span>
+        <span class="bc-sep" id="bc-sep" style="display:none">›</span>
+        <span class="bc-active" id="bc-class" style="display:none"></span>
+      </div>
+      <button class="back-btn" id="back-btn" onclick="drillUp()">← All Classes</button>
+    </div>
+
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+      <div class="spinner"></div>
+      <span>Loading data…</span>
+    </div>
+
+    <!-- Error overlay -->
+    <div class="error-overlay" id="error-overlay" style="display:none">
+      <div class="error-icon">⚠</div>
+      <div class="error-msg" id="error-msg">Could not load data.</div>
+      <button class="retry-btn" onclick="loadAll()">Retry</button>
+    </div>
+
+    <div class="chart-svg-wrap" id="chart-wrap">
+      <svg id="chart-svg"></svg>
+    </div>
+    <div class="chart-footer">
+      <div class="footer-hint">
+        <div class="footer-dot"></div>
+        <span id="footer-hint">Click a bubble to explore manufacturers</span>
+      </div>
+      <span class="footer-sep">·</span>
+      <span>Bubble size = number of entries</span>
+    </div>
+  </div>
+
+  <!-- ─── SIDEBAR ─── -->
+  <div class="sidebar">
+
+    <!-- Y AXIS -->
+    <div class="panel">
+      <div class="panel-header"><span class="ph-accent">Y</span> Axis</div>
+      <div class="panel-body">
+        <div class="axis-opts" id="y-opts">
+          <label class="axis-opt active" data-axis="y" data-val="avg_severity">
+            <input type="radio" name="y" value="avg_severity" checked>
+            <div class="radio-ring"></div>Avg Severity Score
+          </label>
+          <label class="axis-opt" data-axis="y" data-val="avg_contraindications">
+            <input type="radio" name="y" value="avg_contraindications">
+            <div class="radio-ring"></div>Avg Contraindications
+          </label>
+          <label class="axis-opt" data-axis="y" data-val="avg_warnings">
+            <input type="radio" name="y" value="avg_warnings">
+            <div class="radio-ring"></div>Avg Warnings
+          </label>
+          <label class="axis-opt" data-axis="y" data-val="avg_drug_interactions">
+            <input type="radio" name="y" value="avg_drug_interactions">
+            <div class="radio-ring"></div>Avg Drug Interactions
+          </label>
+          <label class="axis-opt" data-axis="y" data-val="avg_adverse_events">
+            <input type="radio" name="y" value="avg_adverse_events">
+            <div class="radio-ring"></div>Avg Adverse Events
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- X AXIS -->
+    <div class="panel">
+      <div class="panel-header"><span class="ph-accent">X</span> Axis</div>
+      <div class="panel-body">
+        <div class="axis-opts" id="x-opts">
+          <label class="axis-opt active" data-axis="x" data-val="n_medicines">
+            <input type="radio" name="x" value="n_medicines" checked>
+            <div class="radio-ring"></div>Medicines in Class
+          </label>
+          <label class="axis-opt" data-axis="x" data-val="n_entries">
+            <input type="radio" name="x" value="n_entries">
+            <div class="radio-ring"></div>Total Entries
+          </label>
+          <label class="axis-opt" data-axis="x" data-val="avg_contraindications">
+            <input type="radio" name="x" value="avg_contraindications">
+            <div class="radio-ring"></div>Avg Contraindications
+          </label>
+          <label class="axis-opt" data-axis="x" data-val="avg_warnings">
+            <input type="radio" name="x" value="avg_warnings">
+            <div class="radio-ring"></div>Avg Warnings
+          </label>
+          <label class="axis-opt" data-axis="x" data-val="avg_drug_interactions">
+            <input type="radio" name="x" value="avg_drug_interactions">
+            <div class="radio-ring"></div>Avg Drug Interactions
+          </label>
+          <label class="axis-opt" data-axis="x" data-val="avg_adverse_events">
+            <input type="radio" name="x" value="avg_adverse_events">
+            <div class="radio-ring"></div>Avg Adverse Events
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- LEGEND -->
+    <div class="panel" id="legend-panel">
+      <div class="panel-header">
+        <span class="ph-accent">●</span>
+        <span id="legend-title">Drug Classes</span>
+      </div>
+      <div class="panel-body">
+        <div class="legend-list" id="legend-list">
+          <div class="legend-loading">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+</div><!-- /layout -->
+
+<!-- TOOLTIP -->
+<div id="tooltip"></div>
+
+<!-- D3 from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<!-- Our chart logic -->
+<script src="chart.js"></script>
+</body>
+</html>
