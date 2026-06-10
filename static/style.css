@@ -565,3 +565,25 @@ body {
     min-height: 400px;
   }
 }
+
+/* ─── ADVERSE EVENT PAGE LINK (in main header) ─────────────────────── */
+.adv-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 16px;
+  background: #dc143c;
+  color: #fff;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background .15s, transform .12s;
+  white-space: nowrap;
+  letter-spacing: .01em;
+  font-family: inherit;
+}
+.adv-nav-btn:hover {
+  background: #b91030;
+  transform: translateY(-1px);
+}

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adverse Event Co-occurrence · Drug Monograph Explorer</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="adverse.css">
+</head>
+<body>
+
+<!-- ─── HEADER ─── -->
+<div class="header">
+  <div class="header-left">
+    <h1>Adverse Event Co-occurrence</h1>
+    <p>Select a drug to explore how adverse events cluster across manufacturers</p>
+  </div>
+  <div class="header-right">
+    <a href="/" class="nav-btn">← Back to Explorer</a>
+    <div class="ml-badge" id="ml-badge" style="display:none">
+      <span class="ml-dot"></span>Semantic ML active
+    </div>
+  </div>
+</div>
+
+<!-- ─── LAYOUT ─── -->
+<div class="adv-layout">
+
+  <!-- LEFT: drug selector + event list -->
+  <div class="adv-left">
+
+    <!-- Drug search + list -->
+    <div class="panel">
+      <div class="panel-header"><span class="ph-accent">①</span> Select a Drug</div>
+      <div class="panel-body" style="padding:10px 12px">
+        <input type="text" id="drug-search" class="search-input" placeholder="Search drugs…" autocomplete="off">
+        <div class="drug-list" id="drug-list">
+          <div class="list-loading">Loading drugs…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Adverse event checklist (shown after drug selected) -->
+    <div class="panel" id="event-panel" style="display:none">
+      <div class="panel-header">
+        <span class="ph-accent">②</span>
+        <span id="event-panel-title">Adverse Events</span>
+        <span class="panel-count" id="event-count"></span>
+      </div>
+      <div class="panel-body" style="padding:8px 12px">
+        <div class="event-filter-row">
+          <input type="text" id="event-search" class="search-input" placeholder="Filter events…" autocomplete="off">
+          <button class="small-btn" id="select-all-btn" onclick="selectAllEvents()">All</button>
+          <button class="small-btn" id="clear-btn" onclick="clearEvents()">None</button>
+        </div>
+        <div class="event-list" id="event-list"></div>
+      </div>
+    </div>
+
+    <!-- Graph controls (shown after drug selected) -->
+    <div class="panel" id="controls-panel" style="display:none">
+      <div class="panel-header"><span class="ph-accent">③</span> Graph Settings</div>
+      <div class="panel-body">
+        <div class="control-row">
+          <label class="ctrl-label">
+            Min co-occurrence (Jaccard)
+            <span class="ctrl-help">Filters <em>edges</em>. Jaccard = companies with both events ÷ companies with either. Higher = only the strongest links are shown.</span>
+          </label>
+          <div class="slider-row">
+            <input type="range" id="jaccard-slider" min="0.2" max="0.95" step="0.05" value="0.35">
+            <span class="slider-val" id="jaccard-val">0.35</span>
+          </div>
+        </div>
+        <div class="control-row">
+          <label class="ctrl-label">
+            Min prevalence (% of companies)
+            <span class="ctrl-help">Filters <em>nodes</em>. An event must be reported by at least this fraction of companies to appear in the graph at all.</span>
+          </label>
+          <div class="slider-row">
+            <input type="range" id="prev-slider" min="0.1" max="0.8" step="0.05" value="0.20">
+            <span class="slider-val" id="prev-val">20%</span>
+          </div>
+        </div>
+        <button class="rebuild-btn" id="rebuild-btn" onclick="rebuildGraph()">Rebuild Graph</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CENTRE: graph -->
+  <div class="adv-centre">
+    <div class="graph-card" id="graph-card">
+
+      <!-- Empty state -->
+      <div class="graph-empty" id="graph-empty">
+        <div class="empty-icon">⬡</div>
+        <div class="empty-title">No drug selected</div>
+        <div class="empty-sub">Choose a drug from the list on the left to see its adverse event co-occurrence network</div>
+      </div>
+
+      <!-- Loading -->
+      <div class="loading-overlay" id="graph-loading" style="display:none">
+        <div class="spinner"></div>
+        <span id="loading-msg">Building graph…</span>
+      </div>
+
+      <!-- Error -->
+      <div class="error-overlay" id="graph-error" style="display:none">
+        <div class="error-icon">⚠</div>
+        <div class="error-msg" id="graph-error-msg"></div>
+        <button class="retry-btn" onclick="rebuildGraph()">Retry</button>
+      </div>
+
+      <!-- Graph header bar -->
+      <div class="graph-topbar" id="graph-topbar" style="display:none">
+        <div class="graph-drug-name" id="graph-drug-name"></div>
+        <div class="graph-stats" id="graph-stats"></div>
+        <div class="graph-controls-right">
+          <button class="icon-btn" id="zoom-in-btn"  title="Zoom in">+</button>
+          <button class="icon-btn" id="zoom-out-btn" title="Zoom out">−</button>
+          <button class="icon-btn" id="reset-btn"    title="Reset zoom">⊡</button>
+        </div>
+      </div>
+
+      <svg id="graph-svg"></svg>
+
+      <!-- Legend -->
+      <div class="graph-legend" id="graph-legend" style="display:none">
+        <div class="gl-item"><div class="gl-dot" style="background:#dc143c"></div>High prevalence</div>
+        <div class="gl-item"><div class="gl-dot" style="background:#2563eb"></div>Medium</div>
+        <div class="gl-item"><div class="gl-dot" style="background:#6b7280"></div>Low prevalence</div>
+        <div class="gl-sep"></div>
+        <div class="gl-item"><div class="gl-line thick"></div>Strong link</div>
+        <div class="gl-item"><div class="gl-line thin"></div>Weak link</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: anomaly + company breakdown -->
+  <div class="adv-right">
+
+    <div class="panel" id="info-panel">
+      <div class="panel-header"><span class="ph-accent">ℹ</span> How to read this</div>
+      <div class="panel-body">
+        <div class="info-text">
+          <p>Each <strong>node</strong> is an adverse event reported by multiple companies for the selected drug.</p>
+          <p>An <strong>edge</strong> connects two events that tend to appear together — the thicker the edge, the stronger the co-occurrence (Jaccard similarity).</p>
+          <p><strong>Node size</strong> reflects how many companies report that event. <strong>Colour</strong> shows prevalence level.</p>
+          <p>Hover any node or edge for details.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="anomaly-panel" style="display:none">
+      <div class="panel-header"><span class="ph-accent">⚠</span> Pattern Anomalies <span class="panel-count" id="anomaly-count"></span></div>
+      <div class="panel-body" style="padding:8px 12px">
+        <div class="anomaly-sub">Companies that break a strong co-occurrence pattern (&ge;75% of peers have both events)</div>
+        <div class="anomaly-list" id="anomaly-list"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="company-panel" style="display:none">
+      <div class="panel-header"><span class="ph-accent">🏭</span> Company Breakdown <span class="panel-count" id="company-panel-count"></span></div>
+      <div class="panel-body" style="padding:8px 12px">
+        <div class="company-breakdown" id="company-breakdown"></div>
+      </div>
+    </div>
+
+    <!-- Node detail card (shown on hover/click) -->
+    <div class="panel" id="node-detail" style="display:none">
+      <div class="panel-header"><span class="ph-accent">◉</span> Selected Event</div>
+      <div class="panel-body" style="padding:10px 14px">
+        <div class="nd-name" id="nd-name"></div>
+        <div class="nd-stats" id="nd-stats"></div>
+        <div class="nd-companies" id="nd-companies"></div>
+        <div id="nd-connected" style="display:none"></div>
+        <div class="nd-synonyms" id="nd-synonyms" style="display:none"></div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- TOOLTIP -->
+<div id="tooltip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="adverse.js"></script>
+</body>
+</html>

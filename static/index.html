@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Drug Monograph Explorer</title>
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -14,6 +14,7 @@
     <h1>Drug Monograph Explorer</h1>
     <p>Canadian generic drug safety database</p>
   </div>
+  <div style="display:flex;align-items:center;gap:14px"><a href="./adverse.html" class="adv-nav-btn">Adverse Events →</a></div>
   <div class="stats-bar" id="stats-bar">
     <div class="stat-chip loading-chip">Loading…</div>
   </div>
@@ -146,6 +147,6 @@
 <!-- D3 from CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <!-- Our chart logic -->
-<script src="/static/chart.js"></script>
+<script src="chart.js"></script>
 </body>
 </html>
