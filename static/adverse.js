@@ -4,7 +4,8 @@
    ===================================================================== */
 
 // ─── CONFIG ───────────────────────────────────────────────────────────
-const API_BASE = "http://localhost:5000/api";
+// const API_BASE = "http://localhost:5000/api";
+const API_BASE = window.location.protocol + "//" + window.location.host + "/api";
 
 // Node colour thresholds (fraction of companies that report the event)
 const HIGH_PREV  = 0.70;

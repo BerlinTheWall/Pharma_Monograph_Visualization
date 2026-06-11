@@ -8,7 +8,8 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 /** Base URL of the Flask API. Change if your server runs on a different port. */
-const API_BASE = "http://localhost:5000/api";
+// const API_BASE = "http://localhost:5000/api";
+const API_BASE = window.location.protocol + "//" + window.location.host + "/api";
 
 /** Color palette for drug classes (index-matched, loops if > 19 classes). */
 const CLASS_COLORS = [
