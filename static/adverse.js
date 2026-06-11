@@ -7,6 +7,26 @@
 // const API_BASE = "http://localhost:5000/api";
 const API_BASE = window.location.protocol + "//" + window.location.host + "/api";
 
+// ─── VISIBILITY GUARD ─────────────────────────────────────────────────
+// Some environments (proxies, browser extensions, crawlers) may inject
+// the `hidden` attribute on elements, which triggers the browser's built-in
+// [hidden]{display:none!important} rule and overrides our CSS.
+// This guard runs immediately and on DOMContentLoaded to ensure adv-right
+// is always rendered, since our right panel is structural, not conditional.
+(function guardRightPanel() {
+  function unhide() {
+    const el = document.querySelector(".adv-right");
+    if (el) {
+      el.removeAttribute("hidden");
+      el.style.setProperty("display", "flex", "important");
+      el.style.setProperty("flex-direction", "column", "");
+      el.style.setProperty("gap", "12px", "");
+    }
+  }
+  unhide();
+  document.addEventListener("DOMContentLoaded", unhide);
+})();
+
 // Node colour thresholds (fraction of companies that report the event)
 const HIGH_PREV  = 0.70;
 const MED_PREV   = 0.40;
