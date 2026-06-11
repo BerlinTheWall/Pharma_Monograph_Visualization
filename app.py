@@ -510,6 +510,166 @@ def api_drug_cooccurrence(drug_name):
         "anomalies":     anomalies,
     })
 
+
+@app.route("/api/global/adverse-events")
+def api_global_adverse_events():
+    """
+    Aggregate adverse events across the ENTIRE dataset.
+    Each unique (drug, company) pair is one 'unit'.
+    Returns the same shape as /api/drugs/<name>/adverse-events.
+    """
+    try:
+        df = load_df()
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 500
+
+    unit_events = {}
+    for (drug, company), group in df.groupby([COL_DRUG, COL_COMPANY]):
+        merged = set()
+        for lst in group["Adverse_List"]:
+            merged.update(lst)
+        unit_events[f"{drug} · {company}"] = sorted(merged)
+
+    all_events = sorted(set().union(*[set(v) for v in unit_events.values()]))
+    n_units    = len(unit_events)
+
+    event_prevalence = {
+        evt: int(sum(1 for evts in unit_events.values() if evt in evts))
+        for evt in all_events
+    }
+
+    return jsonify({
+        "drug_name":        "All drugs (dataset-wide)",
+        "n_companies":      n_units,
+        "all_events":       all_events,
+        "event_prevalence": event_prevalence,
+        "company_events":   unit_events,
+    })
+
+
+@app.route("/api/global/cooccurrence")
+def api_global_cooccurrence():
+    """
+    Co-occurrence graph across the ENTIRE dataset.
+    Each (drug, company) pair = one row in the binary matrix.
+    Query params: jaccard_threshold, min_prevalence
+    """
+    try:
+        df = load_df()
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 500
+
+    jt = float(request.args.get("jaccard_threshold", JACCARD_THRESHOLD))
+    mp = float(request.args.get("min_prevalence",    MIN_COMPANY_FRACTION))
+
+    unit_events = {}
+    for (drug, company), group in df.groupby([COL_DRUG, COL_COMPANY]):
+        merged = set()
+        for lst in group["Adverse_List"]:
+            merged.update(lst)
+        unit_events[f"{drug} · {company}"] = merged
+
+    units   = list(unit_events.keys())
+    n_units = len(units)
+
+    all_events = sorted(set().union(*unit_events.values()))
+
+    # Prevalence filter
+    canonical_count = {
+        evt: int(sum(1 for u in units if evt in unit_events[u]))
+        for evt in all_events
+    }
+
+    min_c = max(MIN_COOCCUR_COUNT, int(n_units * mp))
+    max_c = int(n_units * MAX_COMPANY_FRACTION)
+    filtered = [
+        c for c, cnt in canonical_count.items()
+        if min_c <= cnt <= max(min_c, max_c)
+    ]
+
+    if not filtered:
+        return jsonify({
+            "drug_name":      "All drugs (dataset-wide)",
+            "ml_active":      False,
+            "nodes":          [],
+            "edges":          [],
+            "company_events": {u: sorted(e) for u, e in unit_events.items()},
+            "anomalies":      [],
+            "n_units":        n_units,
+        })
+
+    fl  = sorted(filtered)
+    n_e = len(fl)
+
+    # Binary matrix: units × events (use matrix multiply for speed)
+    matrix = np.zeros((n_units, n_e), dtype=np.int8)
+    fl_idx = {c: i for i, c in enumerate(fl)}
+    for ui, unit in enumerate(units):
+        for evt in unit_events[unit]:
+            if evt in fl_idx:
+                matrix[ui, fl_idx[evt]] = 1
+
+    # Co-occurrence via matrix multiply
+    cooc = matrix.T @ matrix  # (n_e, n_e)
+
+    edges = []
+    for i in range(n_e):
+        for j in range(i + 1, n_e):
+            both  = int(cooc[i, j])
+            union = int(np.sum((matrix[:, i] == 1) | (matrix[:, j] == 1)))
+            if union > 0 and both >= MIN_COOCCUR_COUNT:
+                jac = both / union
+                if jac >= jt:
+                    edges.append({
+                        "source":   str(fl[i]),
+                        "target":   str(fl[j]),
+                        "weight":   round(float(jac), 3),
+                        "co_count": both,
+                    })
+
+    nodes = [
+        {
+            "id":       str(canon),
+            "count":    int(canonical_count[canon]),
+            "synonyms": [],
+        }
+        for canon in fl
+    ]
+
+    # Anomaly detection (capped to avoid giant payloads)
+    cidx = {c: i for i, c in enumerate(fl)}
+    ANOMALY_THRESHOLD = 0.75
+    anomalies = []
+    strong_pairs = [e for e in edges if e["co_count"] / n_units >= ANOMALY_THRESHOLD]
+    for pair in strong_pairs[:20]:
+        ei = cidx[pair["source"]]
+        ej = cidx[pair["target"]]
+        for ui, unit in enumerate(units):
+            has_i = int(matrix[ui, ei])
+            has_j = int(matrix[ui, ej])
+            if has_i != has_j:
+                anomalies.append({
+                    "company":      str(unit),
+                    "has":          str(pair["source"] if has_i else pair["target"]),
+                    "missing":      str(pair["target"] if has_i else pair["source"]),
+                    "pattern_rate": round(float(pair["co_count"]) / n_units, 2),
+                })
+            if len(anomalies) >= 80:
+                break
+        if len(anomalies) >= 80:
+            break
+
+    return jsonify({
+        "drug_name":      "All drugs (dataset-wide)",
+        "ml_active":      False,
+        "nodes":          nodes,
+        "edges":          edges,
+        "company_events": {u: sorted(e) for u, e in unit_events.items()},
+        "anomalies":      anomalies,
+        "n_units":        n_units,
+    })
+
+
 # ─── ENTRY POINT ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("=" * 60)

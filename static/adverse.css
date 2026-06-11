@@ -5,6 +5,42 @@
 /* ─── HEADER EXTENSIONS ────────────────────────────────────────────── */
 .header { justify-content: space-between; }
 
+
+/* ─── VIEW TOGGLE BUTTON (Per Drug / Dataset-wide) ─────────────────── */
+.view-toggle {
+  display: flex;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 22px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.view-toggle-btn {
+  padding: 5px 16px;
+  border: none;
+  border-radius: 18px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  background: transparent;
+  color: rgba(255,255,255,.7);
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+
+.view-toggle-btn:hover {
+  color: #fff;
+  background: rgba(255,255,255,.1);
+}
+
+.view-toggle-active {
+  background: #dc143c !important;
+  color: #fff !important;
+}
+
+
 .header-right {
   display: flex;
   align-items: center;

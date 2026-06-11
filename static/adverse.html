@@ -13,9 +13,18 @@
 <div class="header">
   <div class="header-left">
     <h1>Adverse Event Co-occurrence</h1>
-    <p>Select a drug to explore how adverse events cluster across manufacturers</p>
+    <p>Explore how adverse events cluster — by drug or across the entire dataset</p>
   </div>
   <div class="header-right">
+    <!-- View toggle -->
+    <div class="view-toggle">
+      <button class="view-toggle-btn view-toggle-active" id="btn-drug-view" onclick="switchToDrug()">
+        Per Drug
+      </button>
+      <button class="view-toggle-btn" id="btn-global-view" onclick="switchToGlobal()">
+        🌐 Dataset-wide
+      </button>
+    </div>
     <a href="/" class="nav-btn">← Back to Explorer</a>
     <div class="ml-badge" id="ml-badge" style="display:none">
       <span class="ml-dot"></span>Semantic ML active
@@ -30,7 +39,7 @@
   <div class="adv-left">
 
     <!-- Drug search + list -->
-    <div class="panel">
+    <div class="panel" id="drug-selector-panel">
       <div class="panel-header"><span class="ph-accent">①</span> Select a Drug</div>
       <div class="panel-body" style="padding:10px 12px">
         <input type="text" id="drug-search" class="search-input" placeholder="Search drugs…" autocomplete="off">
@@ -173,6 +182,7 @@
         <div class="nd-name" id="nd-name"></div>
         <div class="nd-stats" id="nd-stats"></div>
         <div class="nd-companies" id="nd-companies"></div>
+        <div id="nd-connected" style="display:none"></div>
         <div class="nd-synonyms" id="nd-synonyms" style="display:none"></div>
       </div>
     </div>

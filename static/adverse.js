@@ -18,6 +18,7 @@ const COL_LOW    = "#6b7280";
 const state = {
   drugs:           [],      // all drugs from /api/drugs
   selectedDrug:    null,
+  mode:            "drug",  // "drug" | "global"
   adverseData:     null,    // response from /api/drugs/<drug>/adverse-events
   graphData:       null,    // response from /api/drugs/<drug>/cooccurrence
   checkedEvents:   new Set(),   // events the user has checked (filter)
@@ -310,10 +311,90 @@ async function loadGraph() {
 }
 
 async function rebuildGraph() {
+  if (state.mode === "global") {
+    await loadGlobalGraph();
+    return;
+  }
   if (!state.selectedDrug) return;
   showGraphLoading("Rebuilding graph…");
   try {
     await loadGraph();
+  } catch (err) {
+    hideGraphLoading();
+    showGraphError(err.message);
+  }
+}
+
+// ─── GLOBAL VIEW ──────────────────────────────────────────────────────
+async function switchToGlobal() {
+  state.mode = "global";
+  state.selectedDrug = null;
+  state.selectedNode = null;
+
+  // Update toggle button states
+  document.getElementById("btn-drug-view").classList.remove("view-toggle-active");
+  document.getElementById("btn-global-view").classList.add("view-toggle-active");
+
+  // Show/hide left column sections
+  document.getElementById("drug-selector-panel").style.display = "none";
+  document.getElementById("event-panel").style.display = "";
+  document.getElementById("controls-panel").style.display = "";
+  document.getElementById("event-panel-title").textContent = "Events (dataset-wide)";
+
+  // Update breadcrumb
+  document.getElementById("graph-drug-name").textContent = "All Drugs — Dataset-wide";
+
+  await loadGlobalGraph();
+}
+
+async function switchToDrug() {
+  state.mode = "drug";
+  state.selectedNode = null;
+
+  document.getElementById("btn-drug-view").classList.add("view-toggle-active");
+  document.getElementById("btn-global-view").classList.remove("view-toggle-active");
+
+  document.getElementById("drug-selector-panel").style.display = "";
+  document.getElementById("event-panel").style.display = "none";
+  document.getElementById("controls-panel").style.display = "none";
+
+  // Clear graph
+  d3.select("#graph-svg").selectAll("*").remove();
+  document.getElementById("graph-topbar").style.display = "none";
+  document.getElementById("graph-legend").style.display = "none";
+  document.getElementById("graph-empty").style.display = "";
+  document.getElementById("graph-empty").querySelector(".empty-title").textContent = "No drug selected";
+  document.getElementById("graph-empty").querySelector(".empty-sub").textContent = "Choose a drug from the list on the left to see its adverse event co-occurrence network";
+  document.getElementById("anomaly-panel").style.display = "none";
+  document.getElementById("company-panel").style.display = "none";
+  hideNodeDetail();
+}
+
+async function loadGlobalGraph() {
+  showGraphLoading("Loading dataset-wide events…");
+  hideGraphError();
+  try {
+    // Load global adverse events for the checklist
+    state.adverseData = await apiFetch("/global/adverse-events");
+    state.checkedEvents = new Set(state.adverseData.all_events);
+    renderEventList();
+    showEventPanel("Dataset-wide", state.adverseData);
+
+    updateLoadingMsg("Building global co-occurrence graph — this may take a moment…");
+    const params = new URLSearchParams({
+      jaccard_threshold: state.jaccardThresh,
+      min_prevalence:    state.prevThresh,
+    });
+    state.graphData = await apiFetch("/global/cooccurrence?" + params);
+
+    hideGraphLoading();
+    const mlBadge = document.getElementById("ml-badge");
+    mlBadge.style.display = "none"; // ML is skipped for global view (too slow)
+
+    renderGraph(state.graphData);
+    renderCompanyBreakdown(state.adverseData);
+    renderAnomalies(state.graphData.anomalies, state.graphData.company_events);
+    hideNodeDetail();
   } catch (err) {
     hideGraphLoading();
     showGraphError(err.message);
@@ -625,14 +706,17 @@ function selectNode(d, nComp, companyEvents) {
     <span class="nd-chip" style="color:${nodeColor(d.count,nComp)}">${Math.round(frac*100)}% prevalence</span>`;
 
   // ── Companies that report this event ──
+  // Check both the canonical id AND all synonyms (important when ML is active)
+  const termSet = new Set([d.id, ...(d.synonyms || [])]);
   const reporters = Object.entries(companyEvents)
-    .filter(([, evts]) => evts.includes(d.id))
+    .filter(([, evts]) => evts.some(e => termSet.has(e)))
     .map(([company]) => company);
 
+  const reporterLimit = 20;
   document.getElementById("nd-companies").innerHTML =
-    `<strong>Reported by:</strong><br>` +
-    reporters.slice(0, 8).map(c => `• ${c}`).join("<br>") +
-    (reporters.length > 8 ? `<br>… and ${reporters.length - 8} more` : "");
+    `<strong>Reported by (${reporters.length}):</strong><br>` +
+    reporters.slice(0, reporterLimit).map(c => `• ${c}`).join("<br>") +
+    (reporters.length > reporterLimit ? `<br><em>… and ${reporters.length - reporterLimit} more</em>` : "");
 
   // ── Connected nodes, sorted by Jaccard (strongest first) ──
   const edges     = state.resolvedEdges || [];
