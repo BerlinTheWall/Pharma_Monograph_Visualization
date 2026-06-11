@@ -51,12 +51,17 @@
 }
 
 /* ─── LAYOUT ───────────────────────────────────────────────────────── */
+
+/* Ensure full-height layout works correctly on Railway and all deployments */
+html, body { height: 100%; }
+
 .adv-layout {
   display: grid;
   grid-template-columns: 270px 1fr 280px;
   gap: 14px;
   padding: 14px;
   height: calc(100vh - 68px);
+  min-height: 500px;
 }
 
 .adv-left, .adv-right {
@@ -64,6 +69,7 @@
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
+  min-height: 200px;
   scrollbar-width: thin;
   scrollbar-color: #d1d5db transparent;
 }
