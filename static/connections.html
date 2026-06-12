@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Event · Drug · Company · Drug Monograph Explorer</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/connections.css">
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>Event · Drug · Company</h1>
+    <p>Click any item to trace its connections across the three columns</p>
+  </div>
+  <div class="header-right" style="display:flex;align-items:center;gap:10px;">
+    <a href="/adverse" class="nav-btn">Adverse Events Network →</a>
+    <a href="/" class="nav-btn">← Back to Explorer</a>
+
+  </div>
+</div>
+
+<div class="cx-shell">
+
+  <!-- TOOLBAR -->
+  <div class="cx-search-bar">
+    <input type="text" id="cx-search" class="cx-search-input" placeholder="Search across all columns…" autocomplete="off">
+    <button class="cx-clear-btn" onclick="clearSelection()">Clear</button>
+    <span class="cx-status" id="cx-status"></span>
+  </div>
+
+  <!-- LOADING / ERROR -->
+  <div class="cx-loading" id="cx-loading">
+    <div class="cx-spinner"></div>
+    <span>Loading connections…</span>
+  </div>
+  <div class="cx-error" id="cx-error" style="display:none">
+    <span id="cx-error-msg"></span>
+    <button onclick="loadData()">Retry</button>
+  </div>
+
+  <!-- 5-COLUMN LAYOUT: col | gap | col | gap | col -->
+  <div class="cx-layout" id="cx-layout" style="display:none">
+
+    <!-- Column 1: Adverse Events -->
+    <div class="cx-col" id="col-events">
+      <div class="cx-col-head">
+        <div class="cx-col-label">Adverse Events</div>
+        <div class="cx-col-count" id="count-events"></div>
+      </div>
+      <div class="cx-col-search">
+        <input type="text" class="cx-col-filter" id="filter-events" placeholder="Filter events…" oninput="filterCol('events', this.value)">
+      </div>
+      <div class="cx-col-body" id="list-events"></div>
+    </div>
+
+    <!-- Gap 1: ribbons between Events and Drugs -->
+    <div class="cx-gap" id="gap-left">
+      <svg id="svg-left" aria-hidden="true"></svg>
+    </div>
+
+    <!-- Column 2: Drugs -->
+    <div class="cx-col" id="col-drugs">
+      <div class="cx-col-head">
+        <div class="cx-col-label">Drugs</div>
+        <div class="cx-col-count" id="count-drugs"></div>
+      </div>
+      <div class="cx-col-search">
+        <input type="text" class="cx-col-filter" id="filter-drugs" placeholder="Filter drugs…" oninput="filterCol('drugs', this.value)">
+      </div>
+      <div class="cx-col-body" id="list-drugs"></div>
+    </div>
+
+    <!-- Gap 2: ribbons between Drugs and Companies -->
+    <div class="cx-gap" id="gap-right">
+      <svg id="svg-right" aria-hidden="true"></svg>
+    </div>
+
+    <!-- Column 3: Companies -->
+    <div class="cx-col" id="col-companies">
+      <div class="cx-col-head">
+        <div class="cx-col-label">Companies</div>
+        <div class="cx-col-count" id="count-companies"></div>
+      </div>
+      <div class="cx-col-search">
+        <input type="text" class="cx-col-filter" id="filter-companies" placeholder="Filter companies…" oninput="filterCol('companies', this.value)">
+      </div>
+      <div class="cx-col-body" id="list-companies"></div>
+    </div>
+
+  </div>
+
+  <!-- DETAIL BAR -->
+  <div class="cx-detail" id="cx-detail" style="display:none">
+    <div class="cx-detail-label" id="cx-detail-label"></div>
+    <div class="cx-detail-name" id="cx-detail-name"></div>
+    <div class="cx-detail-sep"></div>
+    <div class="cx-detail-chips" id="cx-detail-chips"></div>
+  </div>
+
+</div>
+
+<script src="/static/connections.js"></script>
+</body>
+</html>

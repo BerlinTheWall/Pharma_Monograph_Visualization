@@ -587,3 +587,20 @@ body {
   background: #b91030;
   transform: translateY(-1px);
 }
+
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 16px;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  color: #fff;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background .15s;
+  font-family: inherit;
+}
+.nav-btn:hover { background: rgba(220,20,60,.5); border-color: #dc143c; }

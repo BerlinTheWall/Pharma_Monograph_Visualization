@@ -34,10 +34,10 @@ COL_PREGNANCY    = "Pregnancy Recommendation"
 COL_BREAST       = "Breastfeeding Recommendation"
 
 # Co-occurrence graph tuning
-MIN_COMPANY_FRACTION = 0.20   # event must appear in ≥20% of companies
+MIN_COMPANY_FRACTION = 0.15   # event must appear in ≥15% of companies
 MAX_COMPANY_FRACTION = 0.95   # event must be absent from ≥5% of companies
 MIN_COOCCUR_COUNT    = 2      # absolute minimum co-occurrence count
-JACCARD_THRESHOLD    = 0.35   # minimum Jaccard to draw an edge
+JACCARD_THRESHOLD    = 0.25   # minimum Jaccard to draw an edge (lowered from 0.35)
 
 # Semantic similarity tuning (only used when ML model is available)
 SEMANTIC_THRESHOLD   = 0.78   # cosine similarity cutoff for synonym grouping
@@ -108,108 +108,69 @@ def _count_csv(text):
         return 0
     return len([x.strip() for x in str(text).split(",") if x.strip()])
 
-# Known qualifier suffixes used for sidebar canonical grouping
-_QUALIFIER_SUFFIXES = {
-    "nos", "nec", "unspecified", "unclassified", "disorder", "disorders",
-    "condition", "conditions", "disease", "syndrome", "reaction", "reactions",
-    "effect", "effects", "event", "events", "complication", "complications",
-    "upper", "lower", "substernal", "congestive", "aggravated", "related",
-}
-
-
 def clean_adverse_events(text):
     """
-    Parse an adverse events cell into a deduplicated list of clean terms.
+    Parse an adverse-events cell into a deduplicated list.
 
-    Handles two formats found in the dataset:
-      1. Comma-separated:  "nausea, vomiting, headache"
-      2. Blob with 'and':  "vomiting retching and gagging with abdominal pain and diarrhea"
-         These blobs are split on ' and ' when the resulting sub-terms are ≤4 words each.
-    Terms longer than 6 words are discarded as noise.
+    Handles two common formats in the dataset:
+      1. Proper CSV:  "nausea, vomiting, headache"
+      2. Long prose blob joined with " and ":
+         "vomiting retching and gagging with abdominal pain and diarrhea ..."
+
+    Strategy
+    --------
+    * Split on commas first.
+    * For any resulting chunk that looks like a prose blob (contains " and " 
+      and is longer than ~40 chars), further split on " and " and " with ".
+    * Strip noise stopwords and short tokens.
+    * Deduplicate while preserving first-seen order.
     """
     if pd.isna(text):
         return []
     text = str(text).lower()
-    # Keep letters, digits, spaces, commas, hyphens — strip everything else
-    text = re.sub(r"[^\w\s,\-]", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
+    # Remove characters that are not word-chars, spaces, or commas
+    text = re.sub(r"[^\w\s,/]", "", text)
 
-    SKIP = {"the", "and", "for", "etc", "eg", "no", "na", "not",
-            "with", "or", "in", "of", "a", "an"}
-    terms = []
+    STOPWORDS = {"the", "and", "for", "etc", "eg", "no", "na", "not",
+                 "a", "an", "of", "in", "or", "to", "as", "at", "by",
+                 "if", "it", "is", "be", "on"}
 
-    for chunk in text.split(","):
+    # Leading noise words that start a chunk after splitting on "and"/"with"
+    LEADING_NOISE = {"with", "including", "such", "like", "or", "also",
+                     "plus", "other", "these", "those"}
+
+    def _split_chunk(chunk):
+        """Split a single comma-chunk further if it looks like a prose blob."""
         chunk = chunk.strip()
         if not chunk:
-            continue
-        words = chunk.split()
-        # If the chunk looks like an "and"-joined blob, try splitting it
-        if len(words) > 5 and " and " in chunk:
-            sub_terms = [s.strip() for s in re.split(r"\s+and\s+", chunk)]
-            if all(len(s.split()) <= 4 for s in sub_terms):
-                terms.extend(sub_terms)
-            else:
-                # Mixed blob — accept only the short sub-terms
-                for st in sub_terms:
-                    if len(st.split()) <= 4:
-                        terms.append(st)
-                # Long remainder is noise — skip it
+            return []
+        # Prose blob heuristic: contains " and " AND is suspiciously long
+        if " and " in chunk and len(chunk) > 40:
+            # split on " and ", " with ", " or "
+            parts = re.split(r"\s+and\s+|\s+with\s+|\s+or\s+", chunk)
         else:
-            terms.append(chunk)
-
-    result = []
-    seen = set()
-    for t in terms:
-        t = t.strip(" -")
-        words = t.split()
-        if not words or len(words) > 6:          # discard noise blobs
-            continue
-        if all(w in SKIP for w in words):         # only stop-words
-            continue
-        if len(t) < 3:
-            continue
-        if t not in seen:
-            seen.add(t)
-            result.append(t)
-    return result
-
-
-def build_canonical_groups(terms):
-    """
-    Group adverse event terms into canonical forms using prefix matching.
-
-    Rule: if term A (≥2 words) is a strict word-prefix of term B, then A is
-    the canonical and B is a variant.  Canonical = shortest matching prefix.
-
-    Returns:
-        term_to_canon  – dict mapping every term to its canonical string
-        canon_to_members – dict mapping canonical → sorted list of all members
-    """
-    from collections import defaultdict
-    # Process shortest terms first so they become canonicals
-    terms_sorted = sorted(set(terms), key=lambda t: (len(t.split()), t))
-    term_to_canon: dict = {}
-    canon_to_members: dict = defaultdict(list)
-
-    for term in terms_sorted:
-        if term in term_to_canon:
-            continue
-        words = term.split()
-        assigned = False
-        for canon in canon_to_members:
-            cw = canon.split()
-            if len(cw) < 2:           # single-word canonicals never absorb
+            parts = [chunk]
+        out = []
+        for p in parts:
+            p = p.strip()
+            # Strip leading noise words (e.g. "with abdominal pain" → "abdominal pain")
+            words = p.split()
+            while words and words[0] in LEADING_NOISE:
+                words = words[1:]
+            p = " ".join(words).strip()
+            # Drop pure stopwords or very short tokens
+            if len(p) <= 2 or p in STOPWORDS:
                 continue
-            if len(words) > len(cw) and words[: len(cw)] == cw:
-                term_to_canon[term] = canon
-                canon_to_members[canon].append(term)
-                assigned = True
-                break
-        if not assigned:
-            term_to_canon[term] = term
-            canon_to_members[term].append(term)
+            if all(w in STOPWORDS for w in words):
+                continue
+            out.append(p)
+        return out
 
-    return term_to_canon, {k: sorted(v) for k, v in canon_to_members.items()}
+    terms = []
+    for chunk in text.split(","):
+        terms.extend(_split_chunk(chunk))
+
+    return list(dict.fromkeys(terms))   # preserve order, deduplicate
 
 def _normalise_columns(df):
     """
@@ -390,6 +351,21 @@ def build_cooccurrence_graph(drug_name, df):
         for canon in fl
     ]
 
+    # ── Ensure isolated nodes (pass prevalence but no edges) are included ──
+    # Without this, events that pass the prevalence filter but don't share a
+    # strong Jaccard with any other event are silently excluded from the graph.
+    # We keep them so the graph always matches the count the user sees in the list.
+    connected_ids = set()
+    for e in edges:
+        connected_ids.add(e["source"])
+        connected_ids.add(e["target"])
+
+    for canon in fl:
+        if canon not in connected_ids:
+            # Already in nodes list, no action needed — just documenting intent.
+            pass
+    # (nodes list already contains all fl items; the above is a no-op safety note)
+
     # Anomaly detection: companies that break strong co-occurrence patterns
     ANOMALY_THRESHOLD = 0.75
     anomalies = []
@@ -493,6 +469,11 @@ def adverse_index():
     """Serve the adverse event co-occurrence explorer page."""
     return send_from_directory("static", "adverse.html")
 
+@app.route("/connections")
+def connections_index():
+    """Serve the Event · Drug · Company parallel connections view."""
+    return send_from_directory("static", "connections.html")
+
 @app.route("/api/drugs")
 def api_drugs():
     """List all unique drugs with basic stats — used to populate the drug selector."""
@@ -522,11 +503,8 @@ def api_drugs():
 @app.route("/api/drugs/<drug_name>/adverse-events")
 def api_drug_adverse_events(drug_name):
     """
-    Return per-company adverse event lists for a drug, plus a deduplicated,
-    synonym-grouped list of canonical events for the sidebar checklist.
-
-    The sidebar shows one row per canonical term; hovering reveals variants.
-    The 'synonyms' field maps each canonical to the list of raw variants.
+    Return per-company adverse event lists for a drug, plus
+    a sorted list of all unique events for the sidebar checklist.
     """
     try:
         df = load_df()
@@ -537,45 +515,50 @@ def api_drug_adverse_events(drug_name):
     if drug_df.empty:
         return jsonify({"error": f"Drug '{drug_name}' not found."}), 404
 
-    company_events = {}
+    company_events_raw = {}
     for company, group in drug_df.groupby(COL_COMPANY):
         merged = set()
         for lst in group["Adverse_List"]:
             merged.update(lst)
-        company_events[company] = sorted(merged)
+        company_events_raw[company] = merged
 
-    all_raw_events = sorted(set().union(*[set(v) for v in company_events.values()]))
+    all_events_raw = sorted(set().union(*company_events_raw.values()))
+    n_comp = len(company_events_raw)
 
-    # Build canonical groups for the sidebar
-    term_to_canon, canon_to_members = build_canonical_groups(all_raw_events)
+    # Apply the same synonym grouping used by the co-occurrence graph so
+    # the left-panel list shows one canonical name per synonym cluster.
+    event_to_canonical, canonical_members = _group_synonyms(all_events_raw)
 
-    # Canonical list for the sidebar (sorted, deduplicated)
-    all_canonical = sorted(canon_to_members.keys())
+    # Re-map each company's raw events to canonical names
+    company_events = {
+        company: sorted({event_to_canonical[e] for e in evts})
+        for company, evts in company_events_raw.items()
+    }
 
-    # Prevalence: a canonical is "present" in a company if ANY of its members is
-    n_comp = len(company_events)
-    event_prevalence = {}
-    for canon in all_canonical:
-        members = set(canon_to_members[canon])
-        event_prevalence[canon] = int(sum(
-            1 for evts in company_events.values()
-            if members.intersection(evts)
-        ))
+    all_canonicals = sorted(set(event_to_canonical.values()))
 
-    # Synonym map for the sidebar tooltip (only non-trivial groups)
-    synonyms_map = {
-        canon: [m for m in members if m != canon]
-        for canon, members in canon_to_members.items()
-        if len(members) > 1
+    # Prevalence: count companies that have ANY synonym of each canonical
+    event_prevalence = {
+        canon: sum(
+            1 for evts in company_events_raw.values()
+            if any(s in evts for s in canonical_members.get(canon, {canon}))
+        )
+        for canon in all_canonicals
+    }
+
+    # Synonym list so the UI can show "also listed as …"
+    event_synonyms = {
+        canon: sorted(canonical_members.get(canon, {canon}) - {canon})
+        for canon in all_canonicals
     }
 
     return jsonify({
         "drug_name":        drug_name,
         "n_companies":      n_comp,
-        "all_events":       all_canonical,        # canonical terms only
+        "all_events":       all_canonicals,
         "event_prevalence": event_prevalence,
-        "synonyms_map":     synonyms_map,         # canon -> [variants]
-        "company_events":   company_events,        # still raw (for graph lookup)
+        "event_synonyms":   event_synonyms,
+        "company_events":   company_events,
     })
 
 @app.route("/api/drugs/<drug_name>/cooccurrence")
@@ -620,164 +603,50 @@ def api_drug_cooccurrence(drug_name):
     })
 
 
-@app.route("/api/global/adverse-events")
-def api_global_adverse_events():
+@app.route("/api/connections")
+def api_connections():
     """
-    Aggregate adverse events across the ENTIRE dataset.
-    Each unique (drug, company) pair is one 'unit'.
-    Returns the same shape as /api/drugs/<name>/adverse-events.
+    Return a flat connection table for the Parallel Sets / chord visualisation.
+    Aggregates across ALL drugs in the dataset.
+
+    Response shape:
+    {
+      "events":    ["nausea", ...],          # sorted canonical event names
+      "drugs":     ["Atorvastatin", ...],    # sorted drug names
+      "companies": ["Apotex", ...],          # sorted company names
+      "links": [
+        {"event": "nausea", "drug": "Atorvastatin", "company": "Apotex"},
+        ...
+      ]
+    }
+    Each link represents: company X reported event Y for drug Z.
+    Duplicate rows in the source data are collapsed.
     """
     try:
         df = load_df()
     except FileNotFoundError as e:
         return jsonify({"error": str(e)}), 500
 
-    unit_events = {}
-    for (drug, company), group in df.groupby([COL_DRUG, COL_COMPANY]):
-        merged = set()
-        for lst in group["Adverse_List"]:
-            merged.update(lst)
-        unit_events[f"{drug} · {company}"] = sorted(merged)
+    links_set = set()
+    for _, row in df.iterrows():
+        drug    = str(row[COL_DRUG]).strip()
+        company = str(row[COL_COMPANY]).strip()
+        for evt in row["Adverse_List"]:
+            links_set.add((evt, drug, company))
 
-    all_events = sorted(set().union(*[set(v) for v in unit_events.values()]))
-    n_units    = len(unit_events)
+    links = [{"event": e, "drug": d, "company": c}
+             for e, d, c in sorted(links_set)]
 
-    event_prevalence = {
-        evt: int(sum(1 for evts in unit_events.values() if evt in evts))
-        for evt in all_events
-    }
-
-    return jsonify({
-        "drug_name":        "All drugs (dataset-wide)",
-        "n_companies":      n_units,
-        "all_events":       all_events,
-        "event_prevalence": event_prevalence,
-        "company_events":   unit_events,
-    })
-
-
-@app.route("/api/global/cooccurrence")
-def api_global_cooccurrence():
-    """
-    Co-occurrence graph across the ENTIRE dataset.
-    Each (drug, company) pair = one row in the binary matrix.
-    Query params: jaccard_threshold, min_prevalence
-    """
-    try:
-        df = load_df()
-    except FileNotFoundError as e:
-        return jsonify({"error": str(e)}), 500
-
-    jt = float(request.args.get("jaccard_threshold", JACCARD_THRESHOLD))
-    mp = float(request.args.get("min_prevalence",    MIN_COMPANY_FRACTION))
-
-    unit_events = {}
-    for (drug, company), group in df.groupby([COL_DRUG, COL_COMPANY]):
-        merged = set()
-        for lst in group["Adverse_List"]:
-            merged.update(lst)
-        unit_events[f"{drug} · {company}"] = merged
-
-    units   = list(unit_events.keys())
-    n_units = len(units)
-
-    all_events = sorted(set().union(*unit_events.values()))
-
-    # Prevalence filter
-    canonical_count = {
-        evt: int(sum(1 for u in units if evt in unit_events[u]))
-        for evt in all_events
-    }
-
-    min_c = max(MIN_COOCCUR_COUNT, int(n_units * mp))
-    max_c = int(n_units * MAX_COMPANY_FRACTION)
-    filtered = [
-        c for c, cnt in canonical_count.items()
-        if min_c <= cnt <= max(min_c, max_c)
-    ]
-
-    if not filtered:
-        return jsonify({
-            "drug_name":      "All drugs (dataset-wide)",
-            "ml_active":      False,
-            "nodes":          [],
-            "edges":          [],
-            "company_events": {u: sorted(e) for u, e in unit_events.items()},
-            "anomalies":      [],
-            "n_units":        n_units,
-        })
-
-    fl  = sorted(filtered)
-    n_e = len(fl)
-
-    # Binary matrix: units × events (use matrix multiply for speed)
-    matrix = np.zeros((n_units, n_e), dtype=np.int8)
-    fl_idx = {c: i for i, c in enumerate(fl)}
-    for ui, unit in enumerate(units):
-        for evt in unit_events[unit]:
-            if evt in fl_idx:
-                matrix[ui, fl_idx[evt]] = 1
-
-    # Co-occurrence via matrix multiply
-    cooc = matrix.T @ matrix  # (n_e, n_e)
-
-    edges = []
-    for i in range(n_e):
-        for j in range(i + 1, n_e):
-            both  = int(cooc[i, j])
-            union = int(np.sum((matrix[:, i] == 1) | (matrix[:, j] == 1)))
-            if union > 0 and both >= MIN_COOCCUR_COUNT:
-                jac = both / union
-                if jac >= jt:
-                    edges.append({
-                        "source":   str(fl[i]),
-                        "target":   str(fl[j]),
-                        "weight":   round(float(jac), 3),
-                        "co_count": both,
-                    })
-
-    nodes = [
-        {
-            "id":       str(canon),
-            "count":    int(canonical_count[canon]),
-            "synonyms": [],
-        }
-        for canon in fl
-    ]
-
-    # Anomaly detection (capped to avoid giant payloads)
-    cidx = {c: i for i, c in enumerate(fl)}
-    ANOMALY_THRESHOLD = 0.75
-    anomalies = []
-    strong_pairs = [e for e in edges if e["co_count"] / n_units >= ANOMALY_THRESHOLD]
-    for pair in strong_pairs[:20]:
-        ei = cidx[pair["source"]]
-        ej = cidx[pair["target"]]
-        for ui, unit in enumerate(units):
-            has_i = int(matrix[ui, ei])
-            has_j = int(matrix[ui, ej])
-            if has_i != has_j:
-                anomalies.append({
-                    "company":      str(unit),
-                    "has":          str(pair["source"] if has_i else pair["target"]),
-                    "missing":      str(pair["target"] if has_i else pair["source"]),
-                    "pattern_rate": round(float(pair["co_count"]) / n_units, 2),
-                })
-            if len(anomalies) >= 80:
-                break
-        if len(anomalies) >= 80:
-            break
+    events    = sorted({l["event"]   for l in links})
+    drugs     = sorted({l["drug"]    for l in links})
+    companies = sorted({l["company"] for l in links})
 
     return jsonify({
-        "drug_name":      "All drugs (dataset-wide)",
-        "ml_active":      False,
-        "nodes":          nodes,
-        "edges":          edges,
-        "company_events": {u: sorted(e) for u, e in unit_events.items()},
-        "anomalies":      anomalies,
-        "n_units":        n_units,
+        "events":    events,
+        "drugs":     drugs,
+        "companies": companies,
+        "links":     links,
     })
-
 
 # ─── ENTRY POINT ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":

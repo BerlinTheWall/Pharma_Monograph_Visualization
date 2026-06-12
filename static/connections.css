@@ -1,0 +1,366 @@
+/* ====================================================================
+   connections.css  –  Event · Drug · Company parallel connections view
+   ==================================================================== */
+
+/* ── SHELL ── */
+.cx-shell {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 68px);
+  overflow: hidden;
+  background: #0f1117;
+}
+
+/* ── TOOLBAR ── */
+.cx-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 24px;
+  background: #181c27;
+  border-bottom: 1px solid #252a38;
+  flex-shrink: 0;
+}
+.cx-search-input {
+  flex: 1;
+  max-width: 320px;
+  padding: 7px 14px;
+  background: #252a38;
+  border: 1.5px solid #333a50;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #e2e8f0;
+  outline: none;
+  transition: border-color .15s;
+}
+.cx-search-input::placeholder { color: #64748b; }
+.cx-search-input:focus { border-color: #3b82f6; }
+
+.cx-clear-btn {
+  padding: 6px 16px;
+  background: transparent;
+  border: 1.5px solid #334155;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  letter-spacing: .03em;
+  transition: border-color .12s, color .12s;
+}
+.cx-clear-btn:hover { border-color: #60a5fa; color: #60a5fa; }
+
+.cx-status {
+  font-size: 12px;
+  color: #475569;
+  margin-left: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── LOADING / ERROR ── */
+.cx-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex: 1;
+  font-size: 14px;
+  color: #64748b;
+  background: #0f1117;
+}
+.cx-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2.5px solid #1e2535;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: cx-spin .7s linear infinite;
+}
+@keyframes cx-spin { to { transform: rotate(360deg); } }
+
+.cx-error {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: #f87171;
+  font-size: 13px;
+  background: #0f1117;
+}
+.cx-error button {
+  padding: 6px 16px;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── MAIN LAYOUT ──────────────────────────────────────────────────────────
+   5-column grid:  [list] [gap-svg] [list] [gap-svg] [list]
+   The two gap columns (cx-gap) are the dedicated canvas for bezier ribbons.
+   ──────────────────────────────────────────────────────────────────────── */
+.cx-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 120px 1fr 120px 1fr;
+  position: relative;
+  overflow: hidden;
+  gap: 0;
+}
+
+/* ── GAP COLUMNS (ribbon zones) ── */
+.cx-gap {
+  position: relative;
+  overflow: visible;
+  z-index: 2;
+  pointer-events: none;
+}
+.cx-gap svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ── LIST COLUMNS ── */
+.cx-col {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 3;
+  overflow: hidden;
+  background: #131720;
+  border-right: 1px solid #1e2535;
+}
+.cx-col:last-child { border-right: none; }
+
+/* ── COLUMN HEADER ── */
+.cx-col-head {
+  padding: 16px 18px 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1e2535;
+  background: #181c27;
+}
+.cx-col-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+.cx-col-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f1f5f9;
+  line-height: 1.2;
+}
+.cx-col-count {
+  font-size: 11px;
+  color: #475569;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* ── COLUMN FILTER INPUT ── */
+.cx-col-search {
+  padding: 10px 12px 8px;
+  flex-shrink: 0;
+  background: #131720;
+  border-bottom: 1px solid #1e2535;
+}
+.cx-col-filter {
+  width: 100%;
+  padding: 6px 12px;
+  background: #1a1f2e;
+  border: 1.5px solid #252a38;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: #cbd5e1;
+  outline: none;
+  transition: border-color .15s;
+}
+.cx-col-filter::placeholder { color: #475569; }
+.cx-col-filter:focus { border-color: #3b82f6; background: #1e2535; }
+
+/* ── SCROLLABLE LIST ── */
+.cx-col-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+.cx-col-body::-webkit-scrollbar { width: 4px; }
+.cx-col-body::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+/* ── ROW ── */
+.cx-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 18px 6px 14px;
+  cursor: pointer;
+  transition: background .1s;
+  user-select: none;
+  min-height: 32px;
+  border-left: 3px solid transparent;
+}
+.cx-row:hover {
+  background: rgba(59, 130, 246, .08);
+  border-left-color: #3b82f6;
+}
+
+.cx-row.active {
+  background: rgba(59, 130, 246, .16);
+  border-left-color: #3b82f6;
+}
+.cx-row.active .cx-row-name {
+  color: #93c5fd;
+  font-weight: 700;
+}
+.cx-row.active .cx-row-dot { background: #3b82f6; box-shadow: 0 0 6px #3b82f680; }
+
+.cx-row.highlighted {
+  background: rgba(99, 102, 241, .07);
+  border-left-color: #6366f1;
+}
+.cx-row.highlighted .cx-row-name { color: #a5b4fc; font-weight: 600; }
+.cx-row.highlighted .cx-row-dot  { background: #6366f1; }
+
+.cx-row.dimmed {
+  opacity: .18;
+  pointer-events: none;
+}
+
+/* ── ROW DOT ── */
+.cx-row-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #334155;
+  transition: background .15s, box-shadow .15s;
+}
+
+/* ── ROW NAME ── */
+.cx-row-name {
+  font-size: 13px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  transition: color .1s;
+  letter-spacing: .01em;
+}
+
+/* ── ROW BADGE ── */
+.cx-row-badge {
+  font-size: 10.5px;
+  color: #475569;
+  background: #1e2535;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.cx-row.active    .cx-row-badge { background: rgba(59,130,246,.2);  color: #60a5fa; }
+.cx-row.highlighted .cx-row-badge { background: rgba(99,102,241,.18); color: #818cf8; }
+
+/* ── RIBBON PATHS (drawn inside .cx-gap SVGs) ── */
+.cx-ribbon {
+  fill: none;
+  stroke: #334155;
+  stroke-opacity: .0;
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+.cx-ribbon.active-ribbon {
+  stroke: #3b82f6;
+  stroke-opacity: .7;
+  stroke-width: 2;
+}
+.cx-ribbon.highlight-ribbon {
+  stroke: #6366f1;
+  stroke-opacity: .45;
+  stroke-width: 1.5;
+}
+
+/* ── DETAIL BAR ── */
+.cx-detail {
+  flex-shrink: 0;
+  background: #181c27;
+  border-top: 1px solid #252a38;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 50px;
+  overflow: hidden;
+}
+.cx-detail-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #475569;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cx-detail-name {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #f1f5f9;
+  flex-shrink: 0;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cx-detail-sep {
+  width: 1px;
+  height: 20px;
+  background: #252a38;
+  flex-shrink: 0;
+}
+.cx-detail-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  align-items: center;
+}
+.cx-chip {
+  font-size: 11.5px;
+  background: #1e2535;
+  color: #94a3b8;
+  padding: 3px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid #2d3a50;
+  transition: background .12s, color .12s, border-color .12s;
+  flex-shrink: 0;
+}
+.cx-chip:hover { background: #253354; color: #93c5fd; border-color: #3b82f6; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .cx-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(5, auto);
+  }
+  .cx-gap { display: none; }
+  .cx-col { border-right: none; border-bottom: 1px solid #1e2535; min-height: 220px; }
+}
