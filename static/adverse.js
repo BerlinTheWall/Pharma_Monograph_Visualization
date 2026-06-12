@@ -200,23 +200,35 @@ function renderEventList() {
   const data    = state.adverseData;
   const n_comp  = data.n_companies;
   const filter  = state.filterText.toLowerCase();
+  const synMap  = data.synonyms_map || {};   // canon -> [variants]
 
   const list = document.getElementById("event-list");
   list.innerHTML = "";
 
-  const events = data.all_events.filter(e => !filter || e.includes(filter));
+  const events = data.all_events.filter(e =>
+    !filter ||
+    e.includes(filter) ||
+    (synMap[e] || []).some(v => v.includes(filter))
+  );
 
   events.forEach(evt => {
-    const count = data.event_prevalence[evt] || 0;
-    const frac  = count / n_comp;
-    const checked = state.checkedEvents.has(evt);
+    const count    = data.event_prevalence[evt] || 0;
+    const frac     = count / n_comp;
+    const checked  = state.checkedEvents.has(evt);
+    const variants = synMap[evt] || [];
+    const hasVars  = variants.length > 0;
 
     const item = document.createElement("div");
     item.className = "event-item" + (checked ? " checked" : "");
     item.dataset.event = evt;
+
+    const varBadge = hasVars
+      ? `<span class="event-var-badge" title="${variants.join(", ")}">+${variants.length}</span>`
+      : "";
+
     item.innerHTML = `
       <div class="event-checkbox"></div>
-      <span class="event-name">${evt}</span>
+      <span class="event-name">${evt}${varBadge}</span>
       <div class="event-prev-bar">
         <div class="event-prev-fill" style="width:${Math.round(frac*100)}%;background:${nodeColor(count,n_comp)}"></div>
       </div>`;
@@ -225,6 +237,23 @@ function renderEventList() {
   });
 
   document.getElementById("event-count").textContent = `${events.length}`;
+
+  // Show how many of the sidebar events appear in the graph (prevalence-filtered)
+  updateGraphCoverageHint(data);
+}
+
+function updateGraphCoverageHint(data) {
+  const n_comp = data.n_companies;
+  const minC   = Math.max(2, Math.round(n_comp * state.prevThresh));
+  const maxC   = Math.round(n_comp * 0.95);
+  const inGraph = data.all_events.filter(e => {
+    const c = data.event_prevalence[e] || 0;
+    return c >= minC && c <= maxC;
+  }).length;
+  const hint = document.getElementById("graph-coverage-hint");
+  if (hint) {
+    hint.textContent = `${inGraph} of ${data.all_events.length} events qualify for graph (${Math.round(inGraph/data.all_events.length*100)}%)`;
+  }
 }
 
 function setupEventSearch() {
@@ -706,10 +735,16 @@ function selectNode(d, nComp, companyEvents) {
     <span class="nd-chip" style="color:${nodeColor(d.count,nComp)}">${Math.round(frac*100)}% prevalence</span>`;
 
   // ── Companies that report this event ──
-  // Check both the canonical id AND all synonyms (important when ML is active)
-  const termSet = new Set([d.id, ...(d.synonyms || [])]);
+  // Build a set of all raw terms that map to this canonical node
+  // Sources: node.synonyms (from ML grouping) + sidebar synonyms_map
+  const synMap   = state.adverseData?.synonyms_map || {};
+  const variants = new Set([
+    d.id,
+    ...(d.synonyms || []),
+    ...(synMap[d.id] || []),
+  ]);
   const reporters = Object.entries(companyEvents)
-    .filter(([, evts]) => evts.some(e => termSet.has(e)))
+    .filter(([, evts]) => evts.some(e => variants.has(e)))
     .map(([company]) => company);
 
   const reporterLimit = 20;

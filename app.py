@@ -108,19 +108,108 @@ def _count_csv(text):
         return 0
     return len([x.strip() for x in str(text).split(",") if x.strip()])
 
+# Known qualifier suffixes used for sidebar canonical grouping
+_QUALIFIER_SUFFIXES = {
+    "nos", "nec", "unspecified", "unclassified", "disorder", "disorders",
+    "condition", "conditions", "disease", "syndrome", "reaction", "reactions",
+    "effect", "effects", "event", "events", "complication", "complications",
+    "upper", "lower", "substernal", "congestive", "aggravated", "related",
+}
+
+
 def clean_adverse_events(text):
-    """Parse a comma-separated adverse events cell into a deduplicated list."""
+    """
+    Parse an adverse events cell into a deduplicated list of clean terms.
+
+    Handles two formats found in the dataset:
+      1. Comma-separated:  "nausea, vomiting, headache"
+      2. Blob with 'and':  "vomiting retching and gagging with abdominal pain and diarrhea"
+         These blobs are split on ' and ' when the resulting sub-terms are ≤4 words each.
+    Terms longer than 6 words are discarded as noise.
+    """
     if pd.isna(text):
         return []
     text = str(text).lower()
-    text = re.sub(r"[^\w\s,]", "", text)
+    # Keep letters, digits, spaces, commas, hyphens — strip everything else
+    text = re.sub(r"[^\w\s,\-]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+
+    SKIP = {"the", "and", "for", "etc", "eg", "no", "na", "not",
+            "with", "or", "in", "of", "a", "an"}
     terms = []
-    skip = {"the", "and", "for", "etc", "eg", "no", "na", "not"}
-    for term in text.split(","):
-        term = term.strip()
-        if len(term) > 2 and term not in skip:
-            terms.append(term)
-    return list(dict.fromkeys(terms))   # preserve order, deduplicate
+
+    for chunk in text.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        words = chunk.split()
+        # If the chunk looks like an "and"-joined blob, try splitting it
+        if len(words) > 5 and " and " in chunk:
+            sub_terms = [s.strip() for s in re.split(r"\s+and\s+", chunk)]
+            if all(len(s.split()) <= 4 for s in sub_terms):
+                terms.extend(sub_terms)
+            else:
+                # Mixed blob — accept only the short sub-terms
+                for st in sub_terms:
+                    if len(st.split()) <= 4:
+                        terms.append(st)
+                # Long remainder is noise — skip it
+        else:
+            terms.append(chunk)
+
+    result = []
+    seen = set()
+    for t in terms:
+        t = t.strip(" -")
+        words = t.split()
+        if not words or len(words) > 6:          # discard noise blobs
+            continue
+        if all(w in SKIP for w in words):         # only stop-words
+            continue
+        if len(t) < 3:
+            continue
+        if t not in seen:
+            seen.add(t)
+            result.append(t)
+    return result
+
+
+def build_canonical_groups(terms):
+    """
+    Group adverse event terms into canonical forms using prefix matching.
+
+    Rule: if term A (≥2 words) is a strict word-prefix of term B, then A is
+    the canonical and B is a variant.  Canonical = shortest matching prefix.
+
+    Returns:
+        term_to_canon  – dict mapping every term to its canonical string
+        canon_to_members – dict mapping canonical → sorted list of all members
+    """
+    from collections import defaultdict
+    # Process shortest terms first so they become canonicals
+    terms_sorted = sorted(set(terms), key=lambda t: (len(t.split()), t))
+    term_to_canon: dict = {}
+    canon_to_members: dict = defaultdict(list)
+
+    for term in terms_sorted:
+        if term in term_to_canon:
+            continue
+        words = term.split()
+        assigned = False
+        for canon in canon_to_members:
+            cw = canon.split()
+            if len(cw) < 2:           # single-word canonicals never absorb
+                continue
+            if len(words) > len(cw) and words[: len(cw)] == cw:
+                term_to_canon[term] = canon
+                canon_to_members[canon].append(term)
+                assigned = True
+                break
+        if not assigned:
+            term_to_canon[term] = term
+            canon_to_members[term].append(term)
+
+    return term_to_canon, {k: sorted(v) for k, v in canon_to_members.items()}
 
 def _normalise_columns(df):
     """
@@ -433,8 +522,11 @@ def api_drugs():
 @app.route("/api/drugs/<drug_name>/adverse-events")
 def api_drug_adverse_events(drug_name):
     """
-    Return per-company adverse event lists for a drug, plus
-    a sorted list of all unique events for the sidebar checklist.
+    Return per-company adverse event lists for a drug, plus a deduplicated,
+    synonym-grouped list of canonical events for the sidebar checklist.
+
+    The sidebar shows one row per canonical term; hovering reveals variants.
+    The 'synonyms' field maps each canonical to the list of raw variants.
     """
     try:
         df = load_df()
@@ -452,21 +544,38 @@ def api_drug_adverse_events(drug_name):
             merged.update(lst)
         company_events[company] = sorted(merged)
 
-    all_events = sorted(set().union(*[set(v) for v in company_events.values()]))
+    all_raw_events = sorted(set().union(*[set(v) for v in company_events.values()]))
 
-    # Event prevalence (how many companies report each)
+    # Build canonical groups for the sidebar
+    term_to_canon, canon_to_members = build_canonical_groups(all_raw_events)
+
+    # Canonical list for the sidebar (sorted, deduplicated)
+    all_canonical = sorted(canon_to_members.keys())
+
+    # Prevalence: a canonical is "present" in a company if ANY of its members is
     n_comp = len(company_events)
-    event_prevalence = {
-        evt: sum(1 for evts in company_events.values() if evt in evts)
-        for evt in all_events
+    event_prevalence = {}
+    for canon in all_canonical:
+        members = set(canon_to_members[canon])
+        event_prevalence[canon] = int(sum(
+            1 for evts in company_events.values()
+            if members.intersection(evts)
+        ))
+
+    # Synonym map for the sidebar tooltip (only non-trivial groups)
+    synonyms_map = {
+        canon: [m for m in members if m != canon]
+        for canon, members in canon_to_members.items()
+        if len(members) > 1
     }
 
     return jsonify({
         "drug_name":        drug_name,
         "n_companies":      n_comp,
-        "all_events":       all_events,
+        "all_events":       all_canonical,        # canonical terms only
         "event_prevalence": event_prevalence,
-        "company_events":   company_events,
+        "synonyms_map":     synonyms_map,         # canon -> [variants]
+        "company_events":   company_events,        # still raw (for graph lookup)
     })
 
 @app.route("/api/drugs/<drug_name>/cooccurrence")
