@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AE Heatmap & Treemap · Drug Monograph Explorer</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/heatmap.css">
+</head>
+<body>
+
+<!-- ─── HEADER ─── -->
+<div class="header">
+  <div class="header-left">
+    <h1>AE Prevalence — Heatmap & Treemap</h1>
+    <p>Select a drug class to drill into its medicines and adverse events</p>
+  </div>
+  <div class="header-right" style="display:flex;align-items:center;gap:10px;">
+    <a href="/adverse" class="nav-btn">AE Network →</a>
+    <a href="/connections" class="nav-btn">Event · Drug · Company →</a>
+    <a href="/" class="nav-btn">← Explorer</a>
+  </div>
+</div>
+
+<!-- ─── ROOT LAYOUT: left sidebar + right content ─── -->
+<div class="hm-root">
+
+  <!-- LEFT SIDEBAR -->
+  <div class="hm-sidebar">
+
+    <!-- Event search filter -->
+    <div class="panel">
+      <div class="panel-header"><span class="ph-accent">⊞</span> Filter Events</div>
+      <div class="panel-body">
+        <input type="text" id="event-filter" class="search-input" placeholder="Search adverse events…" autocomplete="off">
+        <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:#9ca3af" id="event-match-count"></span>
+          <button class="sort-chip" id="btn-clear-filter" onclick="clearEventFilter()" style="display:none">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drug class selector -->
+    <div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column">
+      <div class="panel-header">
+        <span class="ph-accent">◈</span> Drug Classes
+        <span class="panel-count" id="class-count-badge"></span>
+      </div>
+      <div class="panel-body" style="flex:1;overflow-y:auto;padding:8px 10px">
+        <div class="class-filter-list" id="class-filter-list">
+          <div style="color:#9ca3af;font-size:12px;padding:10px 0 0">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="panel">
+      <div class="panel-header"><span class="ph-accent">∑</span> Summary</div>
+      <div class="panel-body" style="padding:10px 14px">
+        <div id="summary-stats"><div style="color:#9ca3af;font-size:12px">Loading…</div></div>
+      </div>
+    </div>
+
+  </div><!-- /hm-sidebar -->
+
+  <!-- RIGHT CONTENT: stacked heatmap + treemap -->
+  <div class="hm-content">
+
+    <!-- ── TOP: HEATMAP ── -->
+    <div class="hm-card hm-card-top">
+      <div class="hm-topbar">
+        <div>
+          <div class="hm-title">Adverse Event Prevalence by Drug Class</div>
+          <div class="hm-subtitle">% of products per class that report each event</div>
+        </div>
+        <div class="hm-count-row">
+          <span class="hm-count-label">Top events:</span>
+          <div class="hm-count-chips">
+            <button class="count-chip" onclick="setTopN(10)">10</button>
+            <button class="count-chip active" onclick="setTopN(20)">20</button>
+            <button class="count-chip" onclick="setTopN(30)">30</button>
+            <button class="count-chip" onclick="setTopN(50)">All</button>
+          </div>
+        </div>
+        <div class="hm-sort-row">
+          <span class="hm-sort-label">Sort:</span>
+          <button class="sort-chip active" id="sort-alpha" onclick="setSortMode('alpha')">A–Z</button>
+          <button class="sort-chip" id="sort-total" onclick="setSortMode('total')">By AEs</button>
+        </div>
+      </div>
+
+      <div class="hm-loading" id="hm-loading">
+        <div class="hm-spinner"></div><span>Building heatmap…</span>
+      </div>
+      <div class="hm-error" id="hm-error" style="display:none">
+        <div class="hm-error-icon">⚠</div>
+        <div class="hm-error-msg" id="hm-error-msg">Could not load data.</div>
+        <button class="hm-retry-btn" onclick="loadHeatmap()">Retry</button>
+      </div>
+
+      <div class="hm-scroll" id="hm-scroll">
+        <svg id="heatmap-svg"></svg>
+      </div>
+
+      <div class="hm-legend">
+        <span class="hm-legend-label" id="legend-low-label">0%</span>
+        <canvas class="hm-legend-bar" id="legend-canvas" width="220" height="10"></canvas>
+        <div class="hm-legend-ticks" id="legend-ticks">
+          <span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+        </div>
+      </div>
+    </div><!-- /hm-card-top -->
+
+    <!-- ── BOTTOM: TREEMAP ── -->
+    <div class="hm-card hm-card-bottom">
+      <div class="hm-topbar">
+        <div>
+          <div class="hm-title" id="tm-title">Treemap — Select a drug class above to drill in</div>
+          <div class="hm-subtitle" id="tm-subtitle">Click any row label in the heatmap to explore that class</div>
+        </div>
+        <!-- Breadcrumb -->
+        <div class="tm-breadcrumb" id="tm-breadcrumb" style="display:none">
+          <button class="sort-chip active" onclick="tmDrillUp()">← All Classes</button>
+          <span class="tm-bc-sep">›</span>
+          <span class="tm-bc-current" id="tm-bc-class"></span>
+        </div>
+        <!-- Legend chips for leaf depth -->
+        <div class="tm-depth-info" id="tm-depth-info" style="display:none">
+          <span class="tm-depth-chip tm-depth-drug">Medicine</span>
+          <span class="tm-depth-chip tm-depth-ae">Adverse Event</span>
+        </div>
+      </div>
+
+      <div class="tm-loading" id="tm-loading" style="display:none">
+        <div class="hm-spinner"></div><span>Building treemap…</span>
+      </div>
+
+      <!-- Treemap SVG -->
+      <div class="tm-scroll" id="tm-scroll">
+        <div class="tm-empty" id="tm-empty">
+          <div class="tm-empty-icon">⬡</div>
+          <div class="tm-empty-title">No class selected</div>
+          <div class="tm-empty-sub">Click a drug class row label in the heatmap above to see its medicines and adverse events as a treemap</div>
+        </div>
+        <svg id="treemap-svg" style="display:none"></svg>
+      </div>
+
+      <!-- Treemap legend bar (same colour scale as heatmap) -->
+      <div class="hm-legend" id="tm-legend" style="display:none">
+        <span style="font-size:11px;color:#9ca3af">AE prevalence within medicine:</span>
+        <canvas class="hm-legend-bar" id="tm-legend-canvas" width="180" height="10" style="max-width:180px"></canvas>
+        <div class="hm-legend-ticks" style="max-width:200px">
+          <span>0%</span><span>50%</span><span>100%</span>
+        </div>
+      </div>
+    </div><!-- /hm-card-bottom -->
+
+  </div><!-- /hm-content -->
+
+  <!-- RIGHT SIDEBAR: detail panel -->
+  <div class="hm-right-panel">
+
+    <div class="panel" id="detail-panel">
+      <div class="panel-header"><span class="ph-accent">◉</span> Selected</div>
+      <div class="panel-body" style="padding:0">
+        <div class="detail-empty" id="detail-empty">
+          Hover or click any cell in the heatmap, or any leaf in the treemap.
+        </div>
+        <div id="detail-content" style="display:none">
+          <div class="detail-header">
+            <div class="detail-event-name" id="det-event-name"></div>
+            <div><span class="detail-class-tag" id="det-class-tag"></span></div>
+          </div>
+          <div class="detail-stats">
+            <div class="detail-stat">
+              <div class="detail-stat-value" id="det-pct"></div>
+              <div class="detail-stat-label">Prevalence</div>
+            </div>
+            <div class="detail-stat">
+              <div class="detail-stat-value" id="det-count"></div>
+              <div class="detail-stat-label">Products</div>
+            </div>
+            <div class="detail-stat">
+              <div class="detail-stat-value" id="det-total"></div>
+              <div class="detail-stat-label">In Class</div>
+            </div>
+            <div class="detail-stat">
+              <div class="detail-stat-value" id="det-rank"></div>
+              <div class="detail-stat-label">AE Rank</div>
+            </div>
+          </div>
+          <div class="detail-bar-row">
+            <div class="detail-bar-label">Prevalence within class</div>
+            <div class="detail-bar-track">
+              <div class="detail-bar-fill" id="det-bar" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="detail-section">
+            <div class="detail-section-title">Event across all classes</div>
+            <div id="det-class-breakdown"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- How to read -->
+    <div class="panel">
+      <div class="panel-header"><span class="ph-accent">ℹ</span> How to Read</div>
+      <div class="panel-body">
+        <div style="font-size:12px;color:#374151;line-height:1.65;padding:2px 0">
+          <p><strong>Heatmap (top):</strong> each cell = % of products in that drug class reporting the AE. Darker = more common.</p>
+          <p style="margin-top:7px"><strong>Treemap (bottom):</strong> click a row label to drill into that class. Each medicine becomes a block; its AEs appear as colour-coded leaf tiles inside it.</p>
+          <p style="margin-top:7px"><strong>Linked selection:</strong> clicking a class in the sidebar or the heatmap row label updates both views simultaneously.</p>
+          <p style="margin-top:7px">Press <kbd style="font-size:10px;background:#f3f4f6;padding:1px 5px;border-radius:3px;border:1px solid #e5e7eb">Esc</kbd> or click outside to clear.</p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /hm-right-panel -->
+
+</div><!-- /hm-root -->
+
+<div id="tooltip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="/static/heatmap.js"></script>
+</body>
+</html>

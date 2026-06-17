@@ -9,7 +9,7 @@ Then open http://localhost:5000
 """
 
 import os, re, math, json, hashlib
-from collections import defaultdict
+from collections import defaultdict, Counter
 from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 import pandas as pd
@@ -120,7 +120,7 @@ def clean_adverse_events(text):
     Strategy
     --------
     * Split on commas first.
-    * For any resulting chunk that looks like a prose blob (contains " and " 
+    * For any resulting chunk that looks like a prose blob (contains " and "
       and is longer than ~40 chars), further split on " and " and " with ".
     * Strip noise stopwords and short tokens.
     * Deduplicate while preserving first-seen order.
@@ -474,6 +474,11 @@ def connections_index():
     """Serve the Event · Drug · Company parallel connections view."""
     return send_from_directory("static", "connections.html")
 
+@app.route("/heatmap")
+def heatmap_index():
+    """Serve the AE Prevalence Heatmap page."""
+    return send_from_directory("static", "heatmap.html")
+
 @app.route("/api/drugs")
 def api_drugs():
     """List all unique drugs with basic stats — used to populate the drug selector."""
@@ -602,6 +607,149 @@ def api_drug_cooccurrence(drug_name):
         "anomalies":     anomalies,
     })
 
+@app.route("/api/global/adverse-events")
+def api_global_adverse_events():
+    """
+    Return dataset-wide adverse event prevalence (across all companies/drugs).
+    Used by the 'Dataset-wide' mode of the co-occurrence explorer.
+    """
+    try:
+        df = load_df()
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 500
+
+    # Treat each row as one "company-drug" unit
+    all_events_raw = []
+    company_events_raw = {}
+    for idx, row in df.iterrows():
+        key = f"{row[COL_COMPANY]} — {row[COL_DRUG]}"
+        evts = set(row["Adverse_List"])
+        company_events_raw[key] = evts
+        all_events_raw.extend(evts)
+
+    all_events_raw = sorted(set(all_events_raw))
+    n_comp = len(company_events_raw)
+
+    event_to_canonical, canonical_members = _group_synonyms(all_events_raw)
+
+    company_events = {
+        key: sorted({event_to_canonical[e] for e in evts})
+        for key, evts in company_events_raw.items()
+    }
+
+    all_canonicals = sorted(set(event_to_canonical.values()))
+
+    event_prevalence = {
+        canon: sum(
+            1 for evts in company_events_raw.values()
+            if any(s in evts for s in canonical_members.get(canon, {canon}))
+        )
+        for canon in all_canonicals
+    }
+
+    event_synonyms = {
+        canon: sorted(canonical_members.get(canon, {canon}) - {canon})
+        for canon in all_canonicals
+    }
+
+    return jsonify({
+        "drug_name":        "Dataset-wide",
+        "n_companies":      n_comp,
+        "all_events":       all_canonicals,
+        "event_prevalence": event_prevalence,
+        "event_synonyms":   event_synonyms,
+        "company_events":   company_events,
+    })
+
+@app.route("/api/global/cooccurrence")
+def api_global_cooccurrence():
+    """
+    Build and return the co-occurrence graph across all drugs/companies.
+    Query params:
+      - jaccard_threshold (float, default 0.25)
+      - min_prevalence    (float 0-1, default 0.15)
+    """
+    try:
+        df = load_df()
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 500
+
+    jt = float(request.args.get("jaccard_threshold", JACCARD_THRESHOLD))
+    mp = float(request.args.get("min_prevalence",    MIN_COMPANY_FRACTION))
+
+    # Build per-row event sets (each row = one company-drug entry)
+    rows_events = []
+    for _, row in df.iterrows():
+        rows_events.append(set(row["Adverse_List"]))
+
+    n_comp = len(rows_events)
+    all_events_raw = sorted(set().union(*rows_events)) if rows_events else []
+
+    event_to_canonical, canonical_members = _group_synonyms(all_events_raw)
+    all_canonicals = sorted(set(event_to_canonical.values()))
+
+    canonical_count = {}
+    for canon in all_canonicals:
+        synonyms = canonical_members.get(canon, {canon})
+        canonical_count[canon] = sum(
+            1 for evts in rows_events
+            if any(s in evts for s in synonyms)
+        )
+
+    min_c = max(MIN_COOCCUR_COUNT, int(n_comp * mp))
+    max_c = int(n_comp * MAX_COMPANY_FRACTION)
+    filtered = [c for c, cnt in canonical_count.items()
+                if min_c <= cnt <= max(min_c, max_c)]
+
+    if not filtered:
+        return jsonify({
+            "drug_name": "Dataset-wide", "ml_active": USE_ML,
+            "nodes": [], "edges": [], "company_events": {}, "anomalies": [],
+        })
+
+    fl   = sorted(filtered)
+    n_e  = len(fl)
+    cidx = {canon: i for i, canon in enumerate(fl)}
+
+    matrix = np.zeros((n_comp, n_e), dtype=np.int8)
+    for ri, evts in enumerate(rows_events):
+        for ei, canon in enumerate(fl):
+            syns = canonical_members.get(canon, {canon})
+            if any(s in evts for s in syns):
+                matrix[ri, ei] = 1
+
+    edges = []
+    for i in range(n_e):
+        for j in range(i + 1, n_e):
+            both  = int(np.sum((matrix[:, i] == 1) & (matrix[:, j] == 1)))
+            union = int(np.sum((matrix[:, i] == 1) | (matrix[:, j] == 1)))
+            if union > 0 and both >= MIN_COOCCUR_COUNT:
+                jac = both / union
+                if jac >= jt:
+                    edges.append({
+                        "source":   str(fl[i]),
+                        "target":   str(fl[j]),
+                        "weight":   round(float(jac), 3),
+                        "co_count": both,
+                    })
+
+    nodes = [
+        {
+            "id":       str(canon),
+            "count":    int(canonical_count[canon]),
+            "synonyms": [str(s) for s in canonical_members.get(canon, {canon}) - {canon}],
+        }
+        for canon in fl
+    ]
+
+    return jsonify({
+        "drug_name":      "Dataset-wide",
+        "ml_active":      USE_ML,
+        "nodes":          nodes,
+        "edges":          edges,
+        "company_events": {},
+        "anomalies":      [],
+    })
 
 @app.route("/api/connections")
 def api_connections():
@@ -648,15 +796,174 @@ def api_connections():
         "links":     links,
     })
 
+# ─── ROUTES: AE PREVALENCE HEATMAP ───────────────────────────────────────────
+@app.route("/api/heatmap")
+def api_heatmap():
+    """
+    Build and return the adverse-event × drug-class prevalence matrix.
+
+    Response shape:
+    {
+      "drug_classes":    ["ACE Inhibitor", ...],        # sorted
+      "top_events":      ["nausea", ...],               # sorted by global freq (top 50)
+      "total_products":  142,
+      "matrix": {
+        "ACE Inhibitor": {
+          "nausea": {
+            "pct":        62.5,   # % of products in class that list this AE
+            "count":      10,     # absolute count
+            "total":      16,     # total products in this class
+            "enrichment": 1.8     # class freq / baseline freq (ratio)
+          }, ...
+        }, ...
+      },
+      "event_baseline": {
+        "nausea": 34.5, ...      # overall % across all products
+      }
+    }
+    """
+    try:
+        df = load_df()
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 500
+
+    # 1. Collect all adverse events and their global counts
+    all_events_list = []
+    for lst in df["Adverse_List"]:
+        all_events_list.extend(lst)
+    global_counter = Counter(all_events_list)
+
+    total_products = int(len(df))
+
+    # 2. Top N events by global frequency (cap at 50 for performance)
+    TOP_N = 50
+    top_events = [evt for evt, _ in global_counter.most_common(TOP_N)]
+
+    # 3. Baseline prevalence (% of all products reporting each event)
+    event_baseline = {
+        evt: round(count / total_products * 100, 2)
+        for evt, count in global_counter.items()
+        if evt in top_events
+    }
+
+    # 4. Build per-class matrix
+    drug_classes = sorted(df[COL_CLASS].dropna().unique().tolist())
+    matrix = {}
+
+    for drug_class in drug_classes:
+        class_df  = df[df[COL_CLASS] == drug_class]
+        class_n   = int(len(class_df))
+        class_row = {}
+
+        # Count events in this class
+        class_counter = Counter()
+        for lst in class_df["Adverse_List"]:
+            class_counter.update(lst)
+
+        for evt in top_events:
+            count      = int(class_counter.get(evt, 0))
+            pct        = round(count / class_n * 100, 2) if class_n else 0.0
+            baseline   = event_baseline.get(evt, 0)
+            enrichment = round(pct / baseline, 2) if baseline > 0 else 0.0
+            class_row[evt] = {
+                "pct":        pct,
+                "count":      count,
+                "total":      class_n,
+                "enrichment": enrichment,
+            }
+
+        matrix[drug_class] = class_row
+
+    return jsonify({
+        "drug_classes":    drug_classes,
+        "top_events":      top_events,
+        "total_products":  total_products,
+        "matrix":          matrix,
+        "event_baseline":  event_baseline,
+    })
+
+
+@app.route("/api/treemap/<drug_class>")
+def api_treemap(drug_class):
+    """
+    Return a drill-down hierarchy for one drug class:
+      {
+        "drug_class": "Statin",
+        "medicines": [
+          {
+            "drug_name":      "Atorvastatin",
+            "n_products":     12,            # distinct rows in dataset
+            "adverse_events": [
+              { "event": "myalgia", "pct": 75.0, "count": 9, "rank": 1 },
+              ...
+            ]
+          }, ...
+        ],
+        "total_ae_types": 34                 # unique AE names across class
+      }
+    AEs are sorted descending by pct within each medicine.
+    Only the top 30 AEs per medicine are included to keep payload small.
+    """
+    try:
+        df = load_df()
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 500
+ 
+    class_df = df[df[COL_CLASS] == drug_class]
+    if class_df.empty:
+        return jsonify({"error": f"Drug class '{drug_class}' not found."}), 404
+ 
+    MAX_AE_PER_DRUG = 30
+    all_ae_names = set()
+    medicines = []
+ 
+    for drug_name, drug_group in class_df.groupby(COL_DRUG):
+        n_products = int(len(drug_group))
+ 
+        # Count AEs across all products of this drug
+        ae_counter = Counter()
+        for lst in drug_group["Adverse_List"]:
+            ae_counter.update(lst)
+ 
+        all_ae_names.update(ae_counter.keys())
+ 
+        # Build sorted AE list, capped at MAX_AE_PER_DRUG
+        ae_list = []
+        for rank, (evt, cnt) in enumerate(ae_counter.most_common(MAX_AE_PER_DRUG), 1):
+            pct = round(cnt / n_products * 100, 1) if n_products else 0.0
+            ae_list.append({
+                "event": evt,
+                "pct":   pct,
+                "count": int(cnt),
+                "rank":  rank,
+            })
+ 
+        medicines.append({
+            "drug_name":      str(drug_name),
+            "n_products":     n_products,
+            "adverse_events": ae_list,
+        })
+ 
+    # Sort medicines by total AE burden (sum of prevalences)
+    medicines.sort(key=lambda m: sum(a["pct"] for a in m["adverse_events"]), reverse=True)
+ 
+    return jsonify({
+        "drug_class":     drug_class,
+        "medicines":      medicines,
+        "total_ae_types": len(all_ae_names),
+    })
+
 # ─── ENTRY POINT ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("=" * 60)
     print("  Drug Monograph Explorer")
     print("=" * 60)
-    print(f"  Data file  : {EXCEL_PATH}")
-    print(f"  Main app   : http://localhost:5000")
-    print(f"  Adverse    : http://localhost:5000/adverse")
-    print(f"  API base   : http://localhost:5000/api/")
+    print(f"  Data file   : {EXCEL_PATH}")
+    print(f"  Main app    : http://localhost:5000")
+    print(f"  Adverse     : http://localhost:5000/adverse")
+    print(f"  Connections : http://localhost:5000/connections")
+    print(f"  Heatmap     : http://localhost:5000/heatmap")
+    print(f"  API base    : http://localhost:5000/api/")
     print("=" * 60)
     _try_load_model()
     app.run(debug=True, port=5000)
