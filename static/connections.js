@@ -35,6 +35,7 @@ const state = {
 
   colFilter: { events: "", drugs: "", companies: "" },
   selection: null,   // { col: "events"|"drugs"|"companies", val: string } | null
+  showAll:   { events: false, drugs: false, companies: false }, // expand collapsed (unrelated) rows per column
 };
 
 // ── BOOT ───────────────────────────────────────────────────────────────────
@@ -95,12 +96,42 @@ function renderAll() {
   document.getElementById("count-drugs").textContent     = state.drugs.length;
   document.getElementById("count-companies").textContent = state.companies.length;
 
-  renderCol("events",    state.events,    "list-events");
-  renderCol("drugs",     state.drugs,     "list-drugs");
-  renderCol("companies", state.companies, "list-companies");
+  renderColumns();
 
   document.getElementById("cx-layout").style.display = "grid";
   updateStatus();
+}
+
+function renderColumns() {
+  renderCol("events",    state.events,    "list-events");
+  renderCol("drugs",     state.drugs,     "list-drugs");
+  renderCol("companies", state.companies, "list-companies");
+}
+
+// Returns the set of connected values for each column given the current
+// selection, or null when nothing is selected. In the selected column the
+// only "connected" value is the selection itself.
+function connectedSets() {
+  const sel = state.selection;
+  if (!sel) return null;
+  if (sel.col === "events") {
+    return {
+      events:    new Set([sel.val]),
+      drugs:     state.eventToDrugs[sel.val]     || new Set(),
+      companies: state.eventToCompanies[sel.val] || new Set(),
+    };
+  } else if (sel.col === "drugs") {
+    return {
+      events:    state.drugToEvents[sel.val]     || new Set(),
+      drugs:     new Set([sel.val]),
+      companies: state.drugToCompanies[sel.val]  || new Set(),
+    };
+  }
+  return {
+    events:    state.companyToEvents[sel.val] || new Set(),
+    drugs:     state.companyToDrugs[sel.val]  || new Set(),
+    companies: new Set([sel.val]),
+  };
 }
 
 function renderCol(colKey, items, listId) {
@@ -115,10 +146,24 @@ function renderCol(colKey, items, listId) {
   };
   const badgeSuffix = { events: " drugs", drugs: " events", companies: " events" };
 
-  container.innerHTML = "";
-  for (const item of visible) {
+  const sel     = state.selection;
+  const sets    = connectedSets();
+  const connSet = sets ? sets[colKey] : null;
+  // The column the selection was made from keeps its full list (no collapse),
+  // so the user can pick another item in it without scrolling past a toggle.
+  const isSelectedCol = sel && colKey === sel.col;
+
+  // Partition into connected "matches" (floated to top) and the collapsed rest.
+  let matches = visible;
+  let others  = [];
+  if (sel && connSet && !isSelectedCol) {
+    matches = visible.filter(v => connSet.has(v));
+    others  = visible.filter(v => !connSet.has(v));
+  }
+
+  const makeRow = (item, cls) => {
     const row = document.createElement("div");
-    row.className = "cx-row";
+    row.className = "cx-row" + (cls ? " " + cls : "");
     row.dataset.col = colKey;
     row.dataset.val = item;
     row.innerHTML = `
@@ -127,8 +172,38 @@ function renderCol(colKey, items, listId) {
       <div class="cx-row-badge">${badgeCount[colKey](item)}${badgeSuffix[colKey]}</div>
     `;
     row.addEventListener("click", () => selectItem(colKey, item));
-    container.appendChild(row);
+    return row;
+  };
+
+  container.innerHTML = "";
+
+  for (const item of matches) {
+    let cls = "";
+    if (sel) {
+      if (colKey === sel.col) cls = item === sel.val ? "active" : "";
+      else                    cls = "highlighted";
+    }
+    container.appendChild(makeRow(item, cls));
   }
+
+  // Collapse toggle + the unrelated (dimmed) rows.
+  if (sel && others.length) {
+    const btn = document.createElement("div");
+    btn.className = "cx-more-btn";
+    btn.textContent = state.showAll[colKey] ? "Show fewer ▴" : `Show ${others.length} more ▾`;
+    btn.addEventListener("click", () => toggleShowAll(colKey));
+    container.appendChild(btn);
+
+    if (state.showAll[colKey]) {
+      for (const item of others) container.appendChild(makeRow(item, "dimmed"));
+    }
+  }
+}
+
+function toggleShowAll(colKey) {
+  state.showAll[colKey] = !state.showAll[colKey];
+  renderColumns();
+  requestAnimationFrame(drawRibbons);
 }
 
 // ── SELECTION ──────────────────────────────────────────────────────────────
@@ -138,7 +213,8 @@ function selectItem(col, val) {
     return;
   }
   state.selection = { col, val };
-  applyHighlights();
+  state.showAll   = { events: false, drugs: false, companies: false };
+  renderColumns();
   requestAnimationFrame(drawRibbons);
   showDetail();
   updateStatus();
@@ -146,57 +222,12 @@ function selectItem(col, val) {
 
 window.clearSelection = function () {
   state.selection = null;
-  applyHighlights();
+  state.showAll   = { events: false, drugs: false, companies: false };
+  renderColumns();
   clearSVGs();
   hideDetail();
   updateStatus();
 };
-
-function applyHighlights() {
-  const sel = state.selection;
-
-  let connectedEvents    = null;
-  let connectedDrugs     = null;
-  let connectedCompanies = null;
-
-  if (sel) {
-    if (sel.col === "events") {
-      connectedDrugs     = state.eventToDrugs[sel.val]     || new Set();
-      connectedCompanies = state.eventToCompanies[sel.val] || new Set();
-      connectedEvents    = new Set([sel.val]);
-    } else if (sel.col === "drugs") {
-      connectedEvents    = state.drugToEvents[sel.val]     || new Set();
-      connectedCompanies = state.drugToCompanies[sel.val]  || new Set();
-      connectedDrugs     = new Set([sel.val]);
-    } else {
-      connectedEvents    = state.companyToEvents[sel.val]  || new Set();
-      connectedDrugs     = state.companyToDrugs[sel.val]   || new Set();
-      connectedCompanies = new Set([sel.val]);
-    }
-  }
-
-  const colMap = {
-    events:    connectedEvents,
-    drugs:     connectedDrugs,
-    companies: connectedCompanies,
-  };
-
-  document.querySelectorAll(".cx-row").forEach(row => {
-    const rCol = row.dataset.col;
-    const rVal = row.dataset.val;
-    row.classList.remove("active", "highlighted", "dimmed");
-    if (!sel) return;
-    const connSet = colMap[rCol];
-    if (!connSet) return;
-    if (rCol === sel.col && rVal === sel.val) {
-      row.classList.add("active");
-    } else if (connSet.has(rVal)) {
-      row.classList.add("highlighted");
-    } else {
-      row.classList.add("dimmed");
-    }
-  });
-}
 
 // ── RIBBONS ────────────────────────────────────────────────────────────────
 // Each gap column has its own SVG (#svg-left between events↔drugs,
@@ -346,7 +377,6 @@ window.filterCol = function(colKey, value) {
   const listMap  = { events: "list-events", drugs: "list-drugs", companies: "list-companies" };
   const itemsMap = { events: state.events,  drugs: state.drugs,  companies: state.companies };
   renderCol(colKey, itemsMap[colKey], listMap[colKey]);
-  applyHighlights();
   requestAnimationFrame(drawRibbons);
 };
 
@@ -358,7 +388,6 @@ document.getElementById("cx-search").addEventListener("input", function () {
     state.colFilter[col] = q;
   });
   renderAll();
-  applyHighlights();
   requestAnimationFrame(drawRibbons);
 });
 

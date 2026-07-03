@@ -14,6 +14,8 @@ html, body { height: 100%; }
   box-sizing: border-box;
   min-height: 600px;
 }
+/* Collapsed: sidebar shrinks to a slim rail, freeing width for the charts */
+.hm-root.sidebar-collapsed { grid-template-columns: 40px 1fr 270px; }
 
 /* ═══ SIDEBAR (left) ═══════════════════════════════════════════════════ */
 .hm-sidebar {
@@ -21,11 +23,46 @@ html, body { height: 100%; }
   flex-direction: column;
   gap: 10px;
   overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: #d1d5db transparent;
 }
 .hm-sidebar::-webkit-scrollbar { width: 4px; }
 .hm-sidebar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+/* ═══ SIDEBAR COLLAPSE TOGGLE ══════════════════════════════════════════ */
+.hm-collapse-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,.05);
+  transition: background .12s, color .12s, border-color .12s;
+}
+.hm-collapse-btn:hover { background: #f9fafb; color: #dc143c; border-color: rgba(220,20,60,.35); }
+.hm-collapse-btn .lbl-collapsed { display: none; }
+
+/* When collapsed: hide the panels, keep only a tall vertical toggle rail */
+.hm-root.sidebar-collapsed .hm-sidebar .panel { display: none; }
+.hm-root.sidebar-collapsed .hm-collapse-btn {
+  flex: 1;
+  height: auto;
+  writing-mode: vertical-rl;
+  padding: 14px 0;
+  letter-spacing: .06em;
+}
+.hm-root.sidebar-collapsed .hm-collapse-btn .lbl-expanded  { display: none; }
+.hm-root.sidebar-collapsed .hm-collapse-btn .lbl-collapsed { display: inline; }
 
 /* ═══ CONTENT (centre): stacked heatmap + treemap ══════════════════════ */
 .hm-content {
@@ -71,11 +108,17 @@ html, body { height: 100%; }
 /* ═══ TREEMAP SCROLL ═══════════════════════════════════════════════════ */
 .tm-scroll {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
   min-height: 0;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
 }
-#treemap-svg { display: block; width: 100%; height: 100%; }
+.tm-scroll::-webkit-scrollbar { width: 6px; }
+.tm-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+#treemap-svg { display: block; }
 
 /* ═══ TREEMAP EMPTY STATE ══════════════════════════════════════════════ */
 .tm-empty {
@@ -178,15 +221,23 @@ html, body { height: 100%; }
 .hm-legend {
   padding: 7px 16px 9px;
   border-top: 1px solid #f0f0f0;
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 12px;
   flex-shrink: 0;
 }
-.hm-legend-label { font-size: 11px; color: #9ca3af; white-space: nowrap; }
-.hm-legend-bar   { flex: 1; max-width: 220px; height: 10px; border-radius: 5px; }
+.hm-legend-caption { font-size: 11px; color: #9ca3af; white-space: nowrap; }
+/* gradient bar with its tick labels stacked directly beneath it, so ticks
+   line up with the colours they annotate */
+.hm-legend-scale {
+  display: flex; flex-direction: column; gap: 3px;
+  flex: 1; max-width: 260px;
+}
+.hm-legend-bar {
+  width: 100%; height: 10px; border-radius: 5px; display: block;
+}
 .hm-legend-ticks {
   display: flex; justify-content: space-between;
   font-size: 10px; color: #9ca3af;
-  flex: 1; max-width: 240px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ═══ LOADING / ERROR ════════════════════════════════════════════════════ */

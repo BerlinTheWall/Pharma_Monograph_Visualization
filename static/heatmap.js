@@ -346,7 +346,10 @@ function renderTreemap(data, drugClass) {
   const cs        = state.colorScale?.scale || d3.scaleSequential(d3.interpolateYlOrRd).domain([0,100]);
   const container = document.getElementById("tm-scroll");
   const W = container.clientWidth  || 800;
-  const H = container.clientHeight || 340;
+  // Grow the treemap with the number of medicines so tiles stay legible; when
+  // it exceeds the viewport, .tm-scroll scrolls vertically.
+  const minH = container.clientHeight || 340;
+  const H = Math.max(minH, data.medicines.length * 60);
 
   // Update header
   document.getElementById("tm-title").textContent    = drugClass;
@@ -509,8 +512,15 @@ function drawLegend() {
     ctx.fillStyle = scale((x/canvas.width)*maxVal);
     ctx.fillRect(x,0,1,canvas.height);
   }
-  const ticks = document.getElementById("legend-ticks");
-  ticks.innerHTML = `<span>${Math.round(maxVal*0.25)}%</span><span>${Math.round(maxVal*0.50)}%</span><span>${Math.round(maxVal*0.75)}%</span><span>${Math.round(maxVal)}%</span>`;
+  legendTicks("legend-ticks", maxVal);
+}
+
+// Renders evenly-spaced tick labels (0 … maxVal) beneath a legend gradient.
+function legendTicks(id, maxVal) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = [0, .25, .5, .75, 1]
+    .map(f => `<span>${Math.round(maxVal * f)}%</span>`).join("");
 }
 
 function drawTmLegend() {
@@ -522,6 +532,7 @@ function drawTmLegend() {
     ctx.fillStyle = scale((x/canvas.width)*maxVal);
     ctx.fillRect(x,0,1,canvas.height);
   }
+  legendTicks("tm-legend-ticks", maxVal);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -650,7 +661,6 @@ function buildCellTooltip(d) {
     <div class="tt-grid">
       <span>Drug Class</span><span class="tt-val" style="font-size:10.5px">${d.drugClass}</span>
       <div class="tt-sep"></div>
-      <span>Prevalence</span><span class="tt-val">${d.pct.toFixed(1)}%</span>
       <span>Products</span><span class="tt-val">${d.count} / ${d.total}</span>
       <div class="tt-hint">Click to pin details →</div>
     </div>`;
@@ -686,7 +696,6 @@ function buildLeafTooltip(d) {
     <div class="tt-grid">
       <span>Medicine</span><span class="tt-val" style="font-size:10.5px">${d.drug.length>18?d.drug.slice(0,16)+"…":d.drug}</span>
       <div class="tt-sep"></div>
-      <span>Prevalence</span><span class="tt-val">${d.pct.toFixed(1)}%</span>
       <span>Products</span><span class="tt-val">${d.count} / ${d.total}</span>
       <div class="tt-sub">in ${d.drugClass}</div>
       <div class="tt-hint">Click to pin details →</div>
@@ -709,6 +718,15 @@ function setSortMode(m) {
   document.getElementById("sort-alpha").classList.toggle("active", m==="alpha");
   document.getElementById("sort-total").classList.toggle("active", m==="total");
   renderHeatmap();
+}
+
+// Collapse / expand the left sidebar, then re-render the width-dependent charts.
+function toggleSidebar() {
+  document.querySelector(".hm-root").classList.toggle("sidebar-collapsed");
+  requestAnimationFrame(() => {
+    renderHeatmap();
+    if (state.tmData) renderTreemap(state.tmData, state.activeClass || state.tmData.drug_class);
+  });
 }
 
 function clearEventFilter() {

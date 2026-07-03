@@ -16,9 +16,9 @@
     <p>Select a drug class to drill into its medicines and adverse events</p>
   </div>
   <div class="header-right" style="display:flex;align-items:center;gap:10px;">
-    <a href="/adverse" class="nav-btn">AE Network →</a>
-    <a href="/connections" class="nav-btn">Event · Drug · Company →</a>
     <a href="/" class="nav-btn">← Explorer</a>
+    <a href="/adverse" class="nav-btn">Adverse Events Network →</a>
+    <a href="/connections" class="nav-btn">Event · Drug · Company →</a>
   </div>
 </div>
 
@@ -27,6 +27,13 @@
 
   <!-- LEFT SIDEBAR -->
   <div class="hm-sidebar">
+
+    <!-- Collapse / expand toggle -->
+    <button class="hm-collapse-btn" id="sidebar-toggle" onclick="toggleSidebar()"
+            title="Collapse panel" aria-label="Toggle side panel">
+      <span class="lbl-expanded">‹ Collapse</span>
+      <span class="lbl-collapsed">Panels ›</span>
+    </button>
 
     <!-- Event search filter -->
     <div class="panel">
@@ -103,10 +110,12 @@
       </div>
 
       <div class="hm-legend">
-        <span class="hm-legend-label" id="legend-low-label">0%</span>
-        <canvas class="hm-legend-bar" id="legend-canvas" width="220" height="10"></canvas>
-        <div class="hm-legend-ticks" id="legend-ticks">
-          <span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+        <span class="hm-legend-caption">Prevalence</span>
+        <div class="hm-legend-scale">
+          <canvas class="hm-legend-bar" id="legend-canvas" width="220" height="10"></canvas>
+          <div class="hm-legend-ticks" id="legend-ticks">
+            <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+          </div>
         </div>
       </div>
     </div><!-- /hm-card-top -->
@@ -147,10 +156,12 @@
 
       <!-- Treemap legend bar (same colour scale as heatmap) -->
       <div class="hm-legend" id="tm-legend" style="display:none">
-        <span style="font-size:11px;color:#9ca3af">AE prevalence within medicine:</span>
-        <canvas class="hm-legend-bar" id="tm-legend-canvas" width="180" height="10" style="max-width:180px"></canvas>
-        <div class="hm-legend-ticks" style="max-width:200px">
-          <span>0%</span><span>50%</span><span>100%</span>
+        <span class="hm-legend-caption">AE prevalence within medicine</span>
+        <div class="hm-legend-scale">
+          <canvas class="hm-legend-bar" id="tm-legend-canvas" width="220" height="10"></canvas>
+          <div class="hm-legend-ticks" id="tm-legend-ticks">
+            <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+          </div>
         </div>
       </div>
     </div><!-- /hm-card-bottom -->
