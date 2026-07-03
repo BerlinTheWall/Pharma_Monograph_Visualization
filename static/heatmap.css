@@ -319,18 +319,19 @@ html, body { height: 100%; }
 /* ═══ TOOLTIP ════════════════════════════════════════════════════════════ */
 #tooltip {
   position: fixed; pointer-events: none; z-index: 9999;
-  background: #1a1a2e; color: #fff; border-radius: 10px;
+  background: #ffffff; color: #1a1a2e; border-radius: 10px;
   padding: 9px 13px; font-size: 12px; font-family: 'Inter', sans-serif;
-  box-shadow: 0 8px 32px rgba(0,0,0,.3); max-width: 260px;
+  border: 1px solid rgba(0,0,0,.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,.18); max-width: 260px;
   opacity: 0; transition: opacity .12s; line-height: 1.5;
 }
 #tooltip.show { opacity: 1; }
-.tt-title { font-size: 12.5px; font-weight: 700; margin-bottom: 5px; line-height: 1.3; }
-.tt-grid  { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; color: rgba(255,255,255,.65); }
-.tt-val   { color: #fff; font-weight: 500; text-align: right; }
-.tt-sep   { height: 1px; background: rgba(255,255,255,.12); margin: 4px 0; grid-column: 1/-1; }
-.tt-hint  { font-size: 9.5px; color: #fca5a5; font-weight: 500; letter-spacing: .03em; grid-column: 1/-1; margin-top: 2px; }
-.tt-sub   { font-size: 10px; color: rgba(255,255,255,.45); grid-column: 1/-1; margin-top: 1px; }
+.tt-title { font-size: 12.5px; font-weight: 700; margin-bottom: 5px; line-height: 1.3; color: #000 !important; }
+.tt-grid  { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; color: rgba(26,26,46,.6); }
+.tt-val   { color: #1a1a2e; font-weight: 500; text-align: right; }
+.tt-sep   { height: 1px; background: rgba(0,0,0,.1); margin: 4px 0; grid-column: 1/-1; }
+.tt-hint  { font-size: 9.5px; color: #dc2626; font-weight: 500; letter-spacing: .03em; grid-column: 1/-1; margin-top: 2px; }
+.tt-sub   { font-size: 10px; color: rgba(26,26,46,.45); grid-column: 1/-1; margin-top: 1px; }
 
 /* ═══ RESPONSIVE ═════════════════════════════════════════════════════════ */
 @media (max-width: 1100px) {

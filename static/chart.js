@@ -518,8 +518,29 @@ function renderCompanies(animate) {
     .attr("opacity", 0.85)
     .attr("fill",    d => cmap[d.company] || "#6b7280");
 
-  // No persistent labels — tooltip covers it
-  gLabels.selectAll(".company-label").transition(t).attr("opacity", 0).remove();
+  // ── Small text labels beside each dot ──
+  const labels = gLabels.selectAll(".company-label")
+    .data(data, d => d.company);
+
+  labels.exit().transition(t).attr("opacity", 0).remove();
+
+  const lEnter = labels.enter().append("text")
+    .attr("class", "company-label")
+    .attr("pointer-events", "none")
+    .attr("opacity", 0)
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "text-after-edge")
+    .attr("font-family", "Inter,sans-serif")
+    .attr("font-size", "8")
+    .attr("font-weight", "500")
+    .attr("fill", "#374151");
+
+  lEnter.merge(labels)
+    .text(d => d.company.length > 16 ? d.company.slice(0, 15) + "…" : d.company)
+    .transition(t)
+    .attr("opacity", 1)
+    .attr("x", d => jitMap[d.company]?.cx ?? xScale(fv(d, state.xField)))
+    .attr("y", d => (jitMap[d.company]?.cy ?? yScale(fv(d, state.yField))) - rScale(d.n_entries) - 2);
 }
 
 

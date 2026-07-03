@@ -465,6 +465,23 @@ input[type="range"] {
   font-weight: 500;
 }
 
+/* ─── COLLAPSIBLE PANELS ───────────────────────────────────────────── */
+.panel-header.collapsible {
+  cursor: pointer;
+  user-select: none;
+}
+.panel-header.collapsible:hover { background: #f1f5f9; }
+/* When there is no count element after the label, keep the chevron on the right */
+.panel-header.collapsible .ph-chevron { margin-left: auto; }
+.panel-header.collapsible .panel-count + .ph-chevron { margin-left: 6px; }
+.ph-chevron {
+  font-size: 11px;
+  color: #9ca3af;
+  transition: transform .18s ease;
+}
+.panel.collapsed .panel-body { display: none; }
+.panel.collapsed .ph-chevron { transform: rotate(-90deg); }
+
 .info-text p {
   font-size: 12px;
   color: #4b5563;
@@ -513,6 +530,20 @@ input[type="range"] {
   background: #f9fafb;
   font-size: 11.5px;
   color: #374151;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background .12s, border-color .12s;
+}
+.co-company:hover { background: #f1f5f9; border-color: #d1d5db; }
+.co-company.active {
+  background: #fdecea;
+  border-color: #bf5b52;
+  color: #1a1a2e;
+  font-weight: 600;
+}
+.co-company.active .co-company-count {
+  background: #bf5b52;
+  color: #fff;
 }
 .co-company-name {
   flex: 1;

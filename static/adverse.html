@@ -53,10 +53,11 @@
 
     <!-- Adverse event checklist (shown after drug selected) -->
     <div class="panel" id="event-panel" style="display:none">
-      <div class="panel-header">
+      <div class="panel-header collapsible">
         <span class="ph-accent">②</span>
         <span id="event-panel-title">Adverse Events</span>
         <span class="panel-count" id="event-count"></span>
+        <span class="ph-chevron">▾</span>
       </div>
       <div class="panel-body" style="padding:8px 12px">
         <div class="event-filter-row">
@@ -137,9 +138,9 @@
 
       <!-- Legend -->
       <div class="graph-legend" id="graph-legend" style="display:none">
-        <div class="gl-item"><div class="gl-dot" style="background:#dc143c"></div>High prevalence</div>
-        <div class="gl-item"><div class="gl-dot" style="background:#2563eb"></div>Medium</div>
-        <div class="gl-item"><div class="gl-dot" style="background:#6b7280"></div>Low prevalence</div>
+        <div class="gl-item"><div class="gl-dot" style="background:#bf5b52"></div>&ge; 70%</div>
+        <div class="gl-item"><div class="gl-dot" style="background:#d69368"></div>40&ndash;70%</div>
+        <div class="gl-item"><div class="gl-dot" style="background:#dcc987"></div>&lt; 40%</div>
         <div class="gl-sep"></div>
         <div class="gl-item"><div class="gl-line thick"></div>Strong link</div>
         <div class="gl-item"><div class="gl-line thin"></div>Weak link</div>
@@ -163,7 +164,7 @@
     </div>
 
     <div class="panel" id="anomaly-panel" style="display:none">
-      <div class="panel-header"><span class="ph-accent">⚠</span> Pattern Anomalies <span class="panel-count" id="anomaly-count"></span></div>
+      <div class="panel-header collapsible"><span class="ph-accent">⚠</span> Pattern Anomalies <span class="panel-count" id="anomaly-count"></span><span class="ph-chevron">▾</span></div>
       <div class="panel-body" style="padding:8px 12px">
         <div class="anomaly-sub">Companies that break a strong co-occurrence pattern (&ge;75% of peers have both events)</div>
         <div class="anomaly-list" id="anomaly-list"></div>
@@ -171,7 +172,7 @@
     </div>
 
     <div class="panel" id="company-panel" style="display:none">
-      <div class="panel-header"><span class="ph-accent">🏭</span> Company Breakdown <span class="panel-count" id="company-panel-count"></span></div>
+      <div class="panel-header collapsible"><span class="ph-accent">🏭</span> Company Breakdown <span class="panel-count" id="company-panel-count"></span><span class="ph-chevron">▾</span></div>
       <div class="panel-body" style="padding:8px 12px">
         <div class="company-breakdown" id="company-breakdown"></div>
       </div>

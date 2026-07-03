@@ -8,11 +8,12 @@
 const API_BASE = window.location.protocol + "//" + window.location.host + "/api";
 
 // Node colour thresholds (fraction of companies that report the event)
+// Warm spectrum: deep red = high prevalence → yellow = low prevalence
 const HIGH_PREV  = 0.70;
 const MED_PREV   = 0.40;
-const COL_HIGH   = "#dc143c";
-const COL_MED    = "#2563eb";
-const COL_LOW    = "#6b7280";
+const COL_HIGH   = "#bf5b52";  // ≥ 70%  — muted red
+const COL_MED    = "#d69368";  // 40–70% — muted orange
+const COL_LOW    = "#dcc987";  // < 40%  — muted yellow
 
 // ─── STATE ────────────────────────────────────────────────────────────
 const state = {
@@ -25,9 +26,10 @@ const state = {
   filterText:      "",
   jaccardThresh:   0.35,
   prevThresh:      0.20,
-  simulation:      null,
-  zoom:            null,
-  selectedNode:    null,
+  simulation:        null,
+  zoom:              null,
+  selectedNode:      null,
+  selectedCompanies: new Set(),   // multi-select: companies to highlight
 };
 
 // ─── TOOLTIP ──────────────────────────────────────────────────────────
@@ -111,6 +113,16 @@ async function init() {
   setupSliders();
   setupDrugSearch();
   setupEventSearch();
+  setupCollapsibles();
+}
+
+// ─── COLLAPSIBLE PANELS ───────────────────────────────────────────────
+function setupCollapsibles() {
+  document.querySelectorAll(".panel-header.collapsible").forEach(header => {
+    header.addEventListener("click", () => {
+      header.closest(".panel").classList.toggle("collapsed");
+    });
+  });
 }
 
 // ─── LOAD DRUG LIST ───────────────────────────────────────────────────
@@ -209,7 +221,10 @@ function renderEventList() {
     !filter ||
     e.includes(filter) ||
     (synMap[e] || []).some(v => v.includes(filter))
-  );
+  )
+  // Sort by prevalence (most-reported events first)
+  .sort((a, b) =>
+    (data.event_prevalence[b] || 0) - (data.event_prevalence[a] || 0));
 
   events.forEach(evt => {
     const count    = data.event_prevalence[evt] || 0;
@@ -503,6 +518,9 @@ function fitToViewport(nodes, W, H, padding = 60) {
 
 // ─── D3 GRAPH ─────────────────────────────────────────────────────────
 function renderGraph(data) {
+  // A fresh graph invalidates any prior company selection/highlight
+  state.selectedCompanies.clear();
+
   const svgEl = document.getElementById("graph-svg");
   const W     = svgEl.clientWidth  || svgEl.getBoundingClientRect().width  || 700;
   const H     = svgEl.clientHeight || svgEl.getBoundingClientRect().height || 520;
@@ -625,12 +643,11 @@ function renderGraph(data) {
       })
     )
     .on("mouseenter", function(evt, d) {
-      if (!state.selectedNode) highlightNeighbours(d, nodes, resolvedEdges);
+      if (!state.selectedNode && !state.selectedCompanies.size) highlightNeighbours(d, nodes, resolvedEdges);
       showTip(evt,
         `<div class="tt-title" style="color:${nodeColor(d.count,nComp)};text-transform:capitalize">${d.id}</div>
          <div class="tt-grid">
-           <span>Companies reporting</span><span class="tt-val">${d.count} / ${nComp}</span>
-           <span>Prevalence</span><span class="tt-val">${Math.round(d.count / nComp * 100)}%</span>
+           <span>Columns</span><span class="tt-val">${d.count} / ${nComp}</span>
            ${d.synonyms?.length
              ? `<div class="tt-sep"></div>
                 <span style="grid-column:1/-1;color:rgba(255,255,255,.5);font-size:10px">Also listed as:</span><span></span>
@@ -641,8 +658,8 @@ function renderGraph(data) {
     })
     .on("mousemove", moveTip)
     .on("mouseleave", () => {
-      // Only reset highlight if no node is persistently selected
-      if (!state.selectedNode) { resetHighlight(); }
+      // Only reset highlight if nothing is persistently selected
+      if (!state.selectedNode && !state.selectedCompanies.size) { resetHighlight(); }
       hideTip();
     })
     .on("click", (evt, d) => {
@@ -711,6 +728,12 @@ function selectNode(d, nComp, companyEvents) {
   if (state.selectedNode?.id === d.id) {
     deselectNode();
     return;
+  }
+
+  // A node selection takes over from any company selection
+  if (state.selectedCompanies.size) {
+    state.selectedCompanies.clear();
+    document.querySelectorAll(".co-company.active").forEach(el => el.classList.remove("active"));
   }
 
   state.selectedNode = d;
@@ -808,6 +831,11 @@ function deselectNode() {
   d3.selectAll(".node circle")
     .attr("stroke",       "#fff")
     .attr("stroke-width", 2);
+  // Background click also clears any company highlight
+  if (state.selectedCompanies.size) {
+    state.selectedCompanies.clear();
+    document.querySelectorAll(".co-company.active").forEach(el => el.classList.remove("active"));
+  }
   resetHighlight();
   hideNodeDetail();
 }
@@ -879,13 +907,90 @@ function renderCompanyBreakdown(adverseData) {
 
   const container = document.getElementById("company-breakdown");
   container.innerHTML = companies.slice(0,15).map(c => `
-    <div class="co-company">
+    <div class="co-company" data-company="${encodeURIComponent(c.company)}" title="Click to toggle this company — select several to combine their adverse events">
       <span class="co-company-name">${c.company}</span>
       <span class="co-company-count">${c.count} events</span>
     </div>`).join("") +
     (companies.length > 15
       ? `<div style="font-size:11px;color:#9ca3af;padding:4px 8px">… and ${companies.length-15} more</div>`
       : "");
+
+  // Wire up click-to-toggle for each company row
+  container.querySelectorAll(".co-company").forEach(el => {
+    el.addEventListener("click", () => {
+      const company = decodeURIComponent(el.dataset.company);
+      toggleCompanySelection(company);
+    });
+  });
+
+  // Re-apply active styling for any companies still selected after a re-render
+  if (state.selectedCompanies.size) {
+    container.querySelectorAll(".co-company").forEach(el => {
+      if (state.selectedCompanies.has(decodeURIComponent(el.dataset.company))) {
+        el.classList.add("active");
+      }
+    });
+  }
+}
+
+// ─── COMPANY SELECTION (multi-select: highlight the union of their events) ──
+function toggleCompanySelection(company) {
+  // A company selection takes over from any node selection
+  if (state.selectedNode) deselectNode();
+
+  // Toggle this company in/out of the selection set
+  if (state.selectedCompanies.has(company)) {
+    state.selectedCompanies.delete(company);
+  } else {
+    state.selectedCompanies.add(company);
+  }
+
+  // Reflect selection state on the rows
+  document.querySelectorAll(".co-company").forEach(el => {
+    el.classList.toggle(
+      "active", state.selectedCompanies.has(decodeURIComponent(el.dataset.company)));
+  });
+
+  if (state.selectedCompanies.size) highlightCompanies();
+  else                              resetHighlight();
+}
+
+function clearCompanySelection() {
+  state.selectedCompanies.clear();
+  document.querySelectorAll(".co-company.active").forEach(el => el.classList.remove("active"));
+  resetHighlight();
+}
+
+/**
+ * Highlight nodes reported by ANY of the selected companies (union);
+ * dim everything else.
+ */
+function highlightCompanies() {
+  const compEvents = state.adverseData?.company_events || {};
+  const synMap     = state.adverseData?.synonyms_map || {};
+
+  // Union of every event term across all selected companies
+  const evts = new Set();
+  state.selectedCompanies.forEach(co => {
+    (compEvents[co] || []).forEach(e => evts.add(e));
+  });
+
+  const belongs = n => {
+    const variants = [n.id, ...(n.synonyms || []), ...(synMap[n.id] || [])];
+    return variants.some(v => evts.has(v));
+  };
+
+  d3.selectAll(".node")
+    .classed("highlighted", n => belongs(n))
+    .classed("dimmed",      n => !belongs(n));
+
+  d3.selectAll(".link")
+    .classed("highlighted", false)
+    .classed("dimmed", e => {
+      const s = typeof e.source === "object" ? e.source : { id: e.source };
+      const t = typeof e.target === "object" ? e.target : { id: e.target };
+      return !(belongs(s) && belongs(t));
+    });
 }
 
 // ─── CONTROLS: SLIDERS ────────────────────────────────────────────────

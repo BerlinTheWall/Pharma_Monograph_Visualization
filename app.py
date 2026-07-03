@@ -53,10 +53,10 @@ def _try_load_model():
         from sentence_transformers import SentenceTransformer
         embedding_model = SentenceTransformer("NeuML/pubmedbert-base-embeddings")
         USE_ML = True
-        print("  ✓ PubMedBERT embeddings loaded — semantic synonym merging active")
+        print("  [OK] PubMedBERT embeddings loaded - semantic synonym merging active")
     except Exception as e:
         USE_ML = False
-        print(f"  ⚠  ML model unavailable ({e.__class__.__name__}): using exact-string matching")
+        print(f"  [!] ML model unavailable ({e.__class__.__name__}): using exact-string matching")
 
 # ─── APP ──────────────────────────────────────────────────────────────────────
 app = Flask(__name__, static_folder="static", static_url_path="/static")
@@ -239,13 +239,24 @@ def _semantically_similar(t1, t2, threshold=SEMANTIC_THRESHOLD):
         return False
     return _cosine(_embed(t1), _embed(t2)) >= threshold
 
-def _group_synonyms(events):
+def _group_synonyms(events, use_ml=True):
     """
     Group semantically similar event strings under a single canonical label.
     Returns dict: canonical -> set of all synonyms
+
+    When ``use_ml`` is False (or the model isn't loaded) grouping is skipped
+    entirely: every distinct event becomes its own canonical. This avoids the
+    O(N²) pairwise comparison, which is prohibitively slow for the dataset-wide
+    view where N is the full universe of adverse events.
     """
     event_to_canonical = {}
     canonical_members  = {}
+
+    if not (use_ml and USE_ML):
+        for evt in events:
+            event_to_canonical[evt] = evt
+            canonical_members[evt]  = {evt}
+        return event_to_canonical, canonical_members
 
     for evt in events:
         if evt in event_to_canonical:
@@ -630,7 +641,8 @@ def api_global_adverse_events():
     all_events_raw = sorted(set(all_events_raw))
     n_comp = len(company_events_raw)
 
-    event_to_canonical, canonical_members = _group_synonyms(all_events_raw)
+    # Dataset-wide: skip ML synonym grouping (O(N²) over the full event universe)
+    event_to_canonical, canonical_members = _group_synonyms(all_events_raw, use_ml=False)
 
     company_events = {
         key: sorted({event_to_canonical[e] for e in evts})
@@ -685,7 +697,8 @@ def api_global_cooccurrence():
     n_comp = len(rows_events)
     all_events_raw = sorted(set().union(*rows_events)) if rows_events else []
 
-    event_to_canonical, canonical_members = _group_synonyms(all_events_raw)
+    # Dataset-wide: skip ML synonym grouping (O(N²) over the full event universe)
+    event_to_canonical, canonical_members = _group_synonyms(all_events_raw, use_ml=False)
     all_canonicals = sorted(set(event_to_canonical.values()))
 
     canonical_count = {}
