@@ -360,9 +360,23 @@
   display: flex;
   gap: 6px;
   flex-wrap: nowrap;
-  overflow: hidden;
   align-items: center;
+  /* Take the remaining width and let overflowing chips scroll horizontally.
+     min-width:0 is required so this flex child can actually shrink and scroll
+     instead of pushing the bar wider than the viewport. */
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
+.cx-detail-chips::-webkit-scrollbar { height: 5px; }
+.cx-detail-chips::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+.cx-detail-chips::-webkit-scrollbar-track { background: transparent; }
 .cx-chip {
   font-size: 11.5px;
   background: #f3f4f6;

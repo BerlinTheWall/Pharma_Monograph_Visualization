@@ -347,13 +347,14 @@ function showDetail() {
               : sel.col === "drugs"  ? "Drug"
                                      : "Company";
 
+  // No cap — the chip row scrolls horizontally, so list every related item.
   let peers = [];
   if (sel.col === "events") {
-    peers = [...(state.eventToDrugs[sel.val] || [])].slice(0, 14).map(d => ({ label: d, col: "drugs" }));
+    peers = [...(state.eventToDrugs[sel.val] || [])].map(d => ({ label: d, col: "drugs" }));
   } else if (sel.col === "drugs") {
-    peers = [...(state.drugToEvents[sel.val] || [])].slice(0, 14).map(e => ({ label: e, col: "events" }));
+    peers = [...(state.drugToEvents[sel.val] || [])].map(e => ({ label: e, col: "events" }));
   } else {
-    peers = [...(state.companyToDrugs[sel.val] || [])].slice(0, 14).map(d => ({ label: d, col: "drugs" }));
+    peers = [...(state.companyToDrugs[sel.val] || [])].map(d => ({ label: d, col: "drugs" }));
   }
 
   document.getElementById("cx-detail-label").textContent = label;
