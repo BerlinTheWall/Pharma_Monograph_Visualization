@@ -512,15 +512,15 @@ function drawLegend() {
     ctx.fillStyle = scale((x/canvas.width)*maxVal);
     ctx.fillRect(x,0,1,canvas.height);
   }
-  legendTicks("legend-ticks", maxVal);
+  legendTicks("legend-tick-min", "legend-tick-max", maxVal);
 }
 
-// Renders evenly-spaced tick labels (0 … maxVal) beneath a legend gradient.
-function legendTicks(id, maxVal) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.innerHTML = [0, .25, .5, .75, 1]
-    .map(f => `<span>${Math.round(maxVal * f)}%</span>`).join("");
+// Sets the two end labels (0% … maxVal%) that flank a legend gradient.
+function legendTicks(minId, maxId, maxVal) {
+  const minEl = document.getElementById(minId);
+  const maxEl = document.getElementById(maxId);
+  if (minEl) minEl.textContent = "0%";
+  if (maxEl) maxEl.textContent = `${Math.round(maxVal)}%`;
 }
 
 function drawTmLegend() {
@@ -532,7 +532,7 @@ function drawTmLegend() {
     ctx.fillStyle = scale((x/canvas.width)*maxVal);
     ctx.fillRect(x,0,1,canvas.height);
   }
-  legendTicks("tm-legend-ticks", maxVal);
+  legendTicks("tm-legend-tick-min", "tm-legend-tick-max", maxVal);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
