@@ -40,8 +40,20 @@ function showTip(evt, html) {
   moveTip(evt);
 }
 function moveTip(evt) {
-  const x = Math.min(evt.clientX + 14, window.innerWidth  - 240);
-  const y = Math.min(evt.clientY - 8,  window.innerHeight - 200);
+  // Measure the tooltip's real size (it's already in the DOM and .show has
+  // been applied) so it always stays fully on-screen regardless of how tall
+  // the content is — the old fixed 240/200 guess clipped larger tooltips.
+  const pad = 12;
+  const { width: w, height: h } = tipEl.getBoundingClientRect();
+
+  let x = evt.clientX + 14;
+  if (x + w > window.innerWidth - pad) x = evt.clientX - 14 - w;   // flip left
+  x = Math.max(pad, Math.min(x, window.innerWidth - w - pad));
+
+  let y = evt.clientY - 8;
+  if (y + h > window.innerHeight - pad) y = window.innerHeight - h - pad; // lift up
+  y = Math.max(pad, y);
+
   tipEl.style.left = x + "px";
   tipEl.style.top  = y + "px";
 }
@@ -498,7 +510,7 @@ function resolveCollisions(nodes, nComp, MIN_GAP = 18) {
  * with comfortable padding on all sides.
  */
 function fitToViewport(nodes, W, H, padding = 60) {
-  if (!nodes.length) return;
+  if (!nodes.length) return 1;
   const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
   const y0 = Math.min(...ys), y1 = Math.max(...ys);
@@ -514,6 +526,7 @@ function fitToViewport(nodes, W, H, padding = 60) {
     n.x = n.x * scale + offX;
     n.y = n.y * scale + offY;
   });
+  return scale;
 }
 
 // ─── D3 GRAPH ─────────────────────────────────────────────────────────
@@ -524,7 +537,14 @@ function renderGraph(data) {
   const svgEl = document.getElementById("graph-svg");
   const W     = svgEl.clientWidth  || svgEl.getBoundingClientRect().width  || 700;
   const H     = svgEl.clientHeight || svgEl.getBoundingClientRect().height || 520;
-  const nComp = data.company_events ? Object.keys(data.company_events).length : 1;
+  // Node size/colour are prevalence fractions = count / nComp. The per-drug
+  // endpoint expresses this via company_events (one key per company); the
+  // dataset-wide endpoint sends an empty company_events but a n_companies
+  // count instead. Falling through to 1 guards against a divide-by-zero that
+  // would make every radius Infinity and collapse the whole graph onto (0,0).
+  const nComp = data.n_companies
+             || Object.keys(data.company_events || {}).length
+             || 1;
 
   // Stop any previous simulation (kept in state for safety, though we no longer run one)
   if (state.simulation) { state.simulation.stop(); state.simulation = null; }
@@ -573,7 +593,16 @@ function renderGraph(data) {
   resolveCollisions(nodes, nComp, 20);
 
   // 3. Scale & centre the result to fill the viewport
-  fitToViewport(nodes, W, H, 55);
+  const fitScale = fitToViewport(nodes, W, H, 55);
+
+  // 4. resolveCollisions guaranteed non-overlap using each node's full radius,
+  //    but fitToViewport scaled the CENTRES by fitScale without touching the
+  //    radii — on a large layout (fitScale < 1, e.g. the dataset-wide view)
+  //    that collapses the gaps and the nodes pile on top of each other. Scale
+  //    the radii by the same factor so the separation survives the fit.
+  //    (Never enlarge radii, so small per-drug graphs look unchanged.)
+  const rScale = Math.min(fitScale, 1);
+  nodes.forEach(n => { n.r = nodeRadius(n.count, nComp) * rScale; });
 
   // ── EDGES ──────────────────────────────────────────────────────
   // Resolve source/target strings → node objects now (no simulation to do it)
@@ -668,13 +697,13 @@ function renderGraph(data) {
     });
 
   node.append("circle")
-    .attr("r",            d => nodeRadius(d.count, nComp))
+    .attr("r",            d => d.r)
     .attr("fill",         d => nodeColor(d.count, nComp))
     .attr("stroke",       "#fff")
     .attr("stroke-width", 2);
 
   node.append("text")
-    .attr("dy", d => nodeRadius(d.count, nComp) + 12)
+    .attr("dy", d => d.r + 12)
     .text(d => d.id.length > 24 ? d.id.slice(0, 22) + "…" : d.id)
     .attr("font-size",    "10")
     .attr("fill",         "#374151")

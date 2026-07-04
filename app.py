@@ -716,7 +716,7 @@ def api_global_cooccurrence():
 
     if not filtered:
         return jsonify({
-            "drug_name": "Dataset-wide", "ml_active": USE_ML,
+            "drug_name": "Dataset-wide", "ml_active": USE_ML, "n_companies": n_comp,
             "nodes": [], "edges": [], "company_events": {}, "anomalies": [],
         })
 
@@ -758,6 +758,7 @@ def api_global_cooccurrence():
     return jsonify({
         "drug_name":      "Dataset-wide",
         "ml_active":      USE_ML,
+        "n_companies":    n_comp,
         "nodes":          nodes,
         "edges":          edges,
         "company_events": {},
