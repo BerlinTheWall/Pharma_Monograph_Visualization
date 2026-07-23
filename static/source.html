@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sources · Drug Monograph Explorer</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/source.css">
+</head>
+<body>
+
+<!-- ─── HEADER ─── -->
+<div class="header">
+  <div class="header-left">
+    <h1>Sources</h1>
+    <p>Browse by drug class → drug → product, with full monograph detail and the Health Canada PDF</p>
+  </div>
+  <div class="header-right" style="display:flex;align-items:center;gap:10px;">
+    <a href="/" class="nav-btn">← Explorer</a>
+    <a href="/adverse" class="nav-btn">Adverse Events Network →</a>
+    <a href="/connections" class="nav-btn">Event · Drug · Company →</a>
+    <a href="/heatmap" class="nav-btn">Heatmap &amp; Treemap →</a>
+  </div>
+</div>
+
+<div class="src-shell">
+
+  <!-- BREADCRUMB -->
+  <div class="src-breadcrumb">
+    <span class="src-bc-item src-bc-root" id="bc-classes" onclick="goToClasses()">All Classes</span>
+    <span class="src-bc-sep" id="bc-sep-1" style="display:none">›</span>
+    <span class="src-bc-item" id="bc-class" style="display:none" onclick="goToDrugs()"></span>
+    <span class="src-bc-sep" id="bc-sep-2" style="display:none">›</span>
+    <span class="src-bc-item src-bc-active" id="bc-drug" style="display:none"></span>
+  </div>
+
+  <!-- LOADING / ERROR -->
+  <div class="src-loading" id="src-loading">
+    <div class="spinner"></div>
+    <span id="src-loading-text">Loading drug classes…</span>
+  </div>
+  <div class="src-error" id="src-error" style="display:none">
+    <div class="error-icon">⚠</div>
+    <div id="src-error-msg">Could not load data.</div>
+    <button class="retry-btn" onclick="retry()">Retry</button>
+  </div>
+
+  <!-- LEVEL 1: CLASSES -->
+  <div class="src-grid" id="classes-view" style="display:none"></div>
+
+  <!-- LEVEL 2: DRUGS -->
+  <div class="src-grid" id="drugs-view" style="display:none"></div>
+
+  <!-- LEVEL 3: PRODUCTS -->
+  <div class="src-products" id="products-view" style="display:none"></div>
+
+</div>
+
+<script src="/static/source.js"></script>
+</body>
+</html>

@@ -29,6 +29,7 @@
     <a href="/" class="nav-btn">← Explorer</a>
     <a href="/connections" class="nav-btn">Event · Drug · Company →</a>
     <a href="/heatmap" class="nav-btn">Heatmap &amp; Treemap →</a>
+    <a href="/source" class="nav-btn">Sources →</a>
     <div class="ml-badge" id="ml-badge" style="display:none">
       <span class="ml-dot"></span>Semantic ML active
     </div>
@@ -176,6 +177,16 @@
       <div class="panel-header collapsible"><span class="ph-accent">🏭</span> Company Breakdown <span class="panel-count" id="company-panel-count"></span><span class="ph-chevron">▾</span></div>
       <div class="panel-body" style="padding:8px 12px">
         <div class="company-breakdown" id="company-breakdown"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="product-panel" style="display:none">
+      <div class="panel-header collapsible"><span class="ph-accent">📄</span> Product Monographs <span class="panel-count" id="product-panel-count"></span><span class="ph-chevron">▾</span></div>
+      <div class="panel-body" style="padding:8px 12px">
+        <div class="product-sub" style="font-size:11px;color:#9ca3af;padding:0 4px 8px">
+          Matched against Health Canada's Drug Product Database — best-effort, verify before relying on a link.
+        </div>
+        <div class="product-list" id="product-list"></div>
       </div>
     </div>
 

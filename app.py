@@ -19,6 +19,12 @@ import networkx as nx
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 EXCEL_PATH = os.path.join(os.path.dirname(__file__), "final__monograph_extractions.xlsx")
 
+# Built by enrich_pdf_links.py — maps row ID -> best-effort DIN / monograph PDF
+# match against Health Canada's Drug Product Database. Not present in the
+# source spreadsheet (no DIN in the monograph text), so this is a separate,
+# optional side-cache rather than a spreadsheet column.
+PDF_LINKS_CACHE_PATH = os.path.join(os.path.dirname(__file__), "pdf_links_cache.json")
+
 # Column names — update if your spreadsheet headers change
 COL_ID           = "ID"
 COL_DRUG         = "Drug Name"
@@ -203,12 +209,25 @@ def load_df():
     df["Adverse_List"]        = df[COL_ADVERSE].apply(clean_adverse_events)
     return df
 
+def load_pdf_links_cache():
+    """Read the DIN/PDF-link cache produced by enrich_pdf_links.py, if present."""
+    if not os.path.exists(PDF_LINKS_CACHE_PATH):
+        return {}
+    with open(PDF_LINKS_CACHE_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
 def _safe(val, dec=2):
     try:
         v = float(val)
         return 0 if math.isnan(v) else round(v, dec)
     except:
         return 0
+
+def _safe_text(val):
+    """NaN-safe string accessor — pandas NaN isn't valid JSON, so coerce to ''."""
+    if pd.isna(val):
+        return ""
+    return str(val).strip()
 
 def _agg(group):
     return {
@@ -452,6 +471,28 @@ def api_class_companies(drug_class):
     records.sort(key=lambda r: r["company"])
     return jsonify(records)
 
+@app.route("/api/classes/<drug_class>/drugs")
+def api_class_drugs(drug_class):
+    """List every distinct drug within a drug class — used by the Sources page
+    to drill from a class down to the drugs in it."""
+    try:
+        df = load_df()
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 500
+    subset = df[df[COL_CLASS] == drug_class]
+    if subset.empty:
+        return jsonify({"error": f"Drug class '{drug_class}' not found."}), 404
+    records = []
+    for drug, group in subset.groupby(COL_DRUG):
+        records.append({
+            "drug_name":    drug,
+            "n_entries":    int(len(group)),
+            "n_companies":  int(group[COL_COMPANY].nunique()),
+            "avg_severity": _safe(group[COL_SEVERITY].mean()),
+        })
+    records.sort(key=lambda r: r["drug_name"])
+    return jsonify({"drug_class": drug_class, "drugs": records})
+
 @app.route("/api/companies")
 def api_all_companies():
     try:
@@ -489,6 +530,12 @@ def connections_index():
 def heatmap_index():
     """Serve the AE Prevalence Heatmap page."""
     return send_from_directory("static", "heatmap.html")
+
+@app.route("/source")
+def source_index():
+    """Serve the Sources page — drill from drug class -> drug -> product rows,
+    each with its full monograph detail and Health Canada PDF link."""
+    return send_from_directory("static", "source.html")
 
 @app.route("/api/drugs")
 def api_drugs():
@@ -576,6 +623,65 @@ def api_drug_adverse_events(drug_name):
         "event_synonyms":   event_synonyms,
         "company_events":   company_events,
     })
+
+@app.route("/api/drugs/<drug_name>/products")
+def api_drug_products(drug_name):
+    """
+    List every dataset row for a drug (one per company/strength variant)
+    alongside its best-effort DIN/monograph-PDF match from Health Canada's
+    Drug Product Database, if enrich_pdf_links.py has been run.
+    """
+    try:
+        df = load_df()
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 500
+
+    drug_df = df[df[COL_DRUG] == drug_name]
+    if drug_df.empty:
+        return jsonify({"error": f"Drug '{drug_name}' not found."}), 404
+
+    pdf_cache = load_pdf_links_cache()
+
+    products = []
+    for _, row in drug_df.iterrows():
+        row_id = str(row[COL_ID])
+        match = pdf_cache.get(row_id, {"status": "not_processed"})
+        products.append({
+            "id":               row_id,
+            "brand_name":       row.get("Brand Name", ""),
+            "company":          row[COL_COMPANY],
+            "match_status":     match.get("status", "not_processed"),
+            "din":              match.get("din"),
+            "matched_company":  match.get("matched_company"),
+            "matched_brand":    match.get("brand_name"),
+            "match_score":      match.get("match_score"),
+            "pdf_url":          match.get("pdf_url"),
+            "dpd_info_url":     match.get("dpd_info_url"),
+            "detail": {
+                "drug_class":               row.get(COL_CLASS, ""),
+                "initial_authorization":    _safe_text(row.get("Initial Authorization")),
+                "revision_date":            _safe_text(row.get("Revision Date")),
+                "ingredients":              _safe_text(row.get("Ingredients")),
+                "dosage":                   _safe_text(row.get("Dosage")),
+                "indication":               _safe_text(row.get("Indication of Use")),
+                "contraindications":        _safe_text(row.get(COL_CONTRAIND)),
+                "warnings":                 _safe_text(row.get(COL_WARNINGS)),
+                "adverse_events":           _safe_text(row.get(COL_ADVERSE)),
+                "drug_interactions":        _safe_text(row.get(COL_INTERACTIONS)),
+                "kidney_dose_adjustment":   _safe_text(row.get("Kidney Function Dose Adjustment")),
+                "liver_dose_adjustment":    _safe_text(row.get("Liver Function Dose Adjustment")),
+                "pharmacokinetics":         _safe_text(row.get("Pharmacokinetics")),
+                "pregnancy_recommendation": _safe_text(row.get(COL_PREGNANCY)),
+                "pregnancy_summary":        _safe_text(row.get("Pregnancy Summary")),
+                "breastfeeding_recommendation": _safe_text(row.get(COL_BREAST)),
+                "breastfeeding_summary":    _safe_text(row.get("Breastfeeding Summary")),
+                "severity_score_percent":   _safe(row.get(COL_SEVERITY)),
+                "severity_category":        _safe_text(row.get(COL_SEV_CAT)),
+            },
+        })
+
+    products.sort(key=lambda p: (p["company"], p["brand_name"]))
+    return jsonify({"drug_name": drug_name, "products": products})
 
 @app.route("/api/drugs/<drug_name>/cooccurrence")
 def api_drug_cooccurrence(drug_name):

@@ -561,6 +561,29 @@ input[type="range"] {
   flex-shrink: 0;
 }
 
+#product-list .co-company { cursor: default; }
+.product-pdf-link {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #bf5b52;
+  background: #fdecea;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-decoration: none;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.product-pdf-link:hover { background: #bf5b52; color: #fff; }
+.product-pdf-none {
+  font-size: 10px;
+  color: #9ca3af;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 /* Node detail */
 .nd-name {
   font-size: 14px;

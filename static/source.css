@@ -1,0 +1,190 @@
+/* =====================================================================
+   Sources page — drug class → drug → product drill-down
+   ===================================================================== */
+
+.src-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 24px 60px;
+}
+
+/* ─── BREADCRUMB ───────────────────────────────────────────────────── */
+.src-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #9ca3af;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.src-bc-item {
+  cursor: pointer;
+  font-weight: 600;
+  transition: color .15s;
+}
+.src-bc-item:hover { color: #dc143c; }
+.src-bc-root { color: #1a1a2e; }
+.src-bc-active { color: #1a1a2e; cursor: default; }
+.src-bc-active:hover { color: #1a1a2e; }
+.src-bc-sep { color: #d1d5db; }
+
+/* ─── LOADING / ERROR ──────────────────────────────────────────────── */
+.src-loading, .src-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px 20px;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+/* ─── LEVEL 1 / 2: CARD GRID (classes, drugs) ─────────────────────── */
+.src-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.src-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.06);
+  border: 1px solid transparent;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: transform .12s, box-shadow .12s, border-color .12s;
+}
+.src-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.1);
+  border-color: #dc143c;
+}
+.src-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+.src-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.src-chip {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 3px 9px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.src-chip.severity-high   { background: #fdecea; color: #b91c1c; }
+.src-chip.severity-medium { background: #fef3c7; color: #92400e; }
+.src-chip.severity-low    { background: #ecfdf5; color: #047857; }
+
+/* ─── LEVEL 3: PRODUCT LIST ────────────────────────────────────────── */
+.src-products {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.src-product-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.06);
+  overflow: hidden;
+}
+
+.src-product-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  cursor: pointer;
+}
+
+.src-product-titles { flex: 1; min-width: 0; }
+.src-product-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+.src-product-sub {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.src-product-pdf-link, .src-product-pdf-none {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 16px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.src-product-pdf-link { color: #bf5b52; background: #fdecea; }
+.src-product-pdf-link:hover { background: #bf5b52; color: #fff; }
+.src-product-pdf-none { color: #9ca3af; background: #f3f4f6; }
+
+.src-product-chevron {
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-size: 13px;
+  transition: transform .15s;
+}
+.src-product-card.expanded .src-product-chevron { transform: rotate(180deg); }
+
+.src-product-detail {
+  display: none;
+  padding: 4px 18px 18px;
+  border-top: 1px solid #f0f0f0;
+}
+.src-product-card.expanded .src-product-detail { display: block; }
+
+.src-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+.src-detail-block { min-width: 0; }
+.src-detail-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin-bottom: 6px;
+}
+.src-detail-text {
+  font-size: 12.5px;
+  color: #374151;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.src-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.src-detail-tag {
+  font-size: 11px;
+  color: #374151;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+.src-detail-empty {
+  font-size: 12px;
+  color: #d1d5db;
+  font-style: italic;
+}

@@ -213,6 +213,11 @@ async function selectDrug(drugName) {
     updateLoadingMsg("Building co-occurrence graph…");
     await loadGraph();
 
+    // Product monograph links — best-effort, non-blocking for the rest of the view
+    apiFetch(`/drugs/${encodeURIComponent(drugName)}/products`)
+      .then(renderProductPanel)
+      .catch(() => renderProductPanel(null));
+
   } catch (err) {
     hideGraphLoading();
     showGraphError(err.message);
@@ -423,6 +428,7 @@ async function switchToDrug() {
   document.getElementById("graph-empty").querySelector(".empty-sub").textContent = "Choose a drug from the list on the left to see its adverse event co-occurrence network";
   document.getElementById("anomaly-panel").style.display = "none";
   document.getElementById("company-panel").style.display = "none";
+  document.getElementById("product-panel").style.display = "none";
   hideNodeDetail();
 }
 
@@ -960,6 +966,32 @@ function renderCompanyBreakdown(adverseData) {
       }
     });
   }
+}
+
+// ─── PRODUCT MONOGRAPH LINKS ──────────────────────────────────────────
+function renderProductPanel(data) {
+  const panel = document.getElementById("product-panel");
+  if (!data || !data.products || !data.products.length) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+
+  document.getElementById("product-panel-count").textContent = data.products.length;
+
+  const container = document.getElementById("product-list");
+  container.innerHTML = data.products.map(p => {
+    const label = p.brand_name ? `${p.brand_name} — ${p.company}` : p.company;
+    let right;
+    if (p.pdf_url) {
+      right = `<a class="product-pdf-link" href="${p.pdf_url}" target="_blank" rel="noopener noreferrer" title="DIN ${p.din} · match score ${p.match_score}">View PDF ↗</a>`;
+    } else if (p.match_status === "matched") {
+      right = `<span class="product-pdf-none" title="Matched DIN ${p.din}, but no monograph PDF is listed for it">No PDF listed</span>`;
+    } else {
+      right = `<span class="product-pdf-none" title="Could not confidently match this product to a Health Canada DIN">Not matched</span>`;
+    }
+    return `<div class="co-company">
+      <span class="co-company-name">${label}</span>
+      ${right}
+    </div>`;
+  }).join("");
 }
 
 // ─── COMPANY SELECTION (multi-select: highlight the union of their events) ──
