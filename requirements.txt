@@ -3,7 +3,6 @@ flask-cors
 pandas
 openpyxl
 gunicorn
-sentence-transformers
 scikit-learn
 networkx
 numpy
